@@ -1,0 +1,4 @@
+hnswlib==0.5.2
+numpy==1.21.2
+fastapi==0.68.0
+uvicorn==0.15.0
