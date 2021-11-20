@@ -12,7 +12,7 @@ def parse_schema(schema):
     assert type(schema)==dict, "Schema type should be a dict"
     assert "filters" in schema, "filters not in schema"
     assert "encoders" in schema, "encoders not in schema"
-    ret = dict()
+    ret = {"metric": schema["metric"]}
     partitions = list(itertools.product(*[f["values"] for f in schema["filters"]]))
     ret["partitions"] = partitions
     ret["index_num"] = lambda x: partitions.index(at(*[f["field"] for f in schema["filters"]])(x))
