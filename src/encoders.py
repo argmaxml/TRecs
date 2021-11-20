@@ -1,14 +1,42 @@
-import json, re
+import json, re, itertools
+from copy import deepcopy as clone
+from operator import itemgetter as at
 import numpy as np
 from tree_helpers import lowest_depth, get_values_nested
 
-def parse_schema():
-    ret = []
+def parse_schema(schema):
+    if hasattr(schema, 'read'):
+        schema = schema.read()
+    if type(schema)==str:
+        schema = json.loads(schema)
+    assert type(schema)==dict, "Schema type should be a dict"
+    assert "filters" in schema, "filters not in schema"
+    assert "encoders" in schema, "encoders not in schema"
+    ret = dict()
+    partitions = list(itertools.product(*[f["values"] for f in schema["filters"]]))
+    ret["partitions"] = partitions
+    ret["index_num"] = lambda x: partitions.index(at(*[f["field"] for f in schema["filters"]])(x))
+    encoder = dict()
+    for enc in schema["encoders"]:
+        if enc["type"] in ["onehot","one_hot", "one hot", "oh"]:
+            encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"])
+        elif enc["type"] in ["ordinal","ordered"]:
+            encoder[enc["field"]] = OrdinalEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"], window=enc["window"])
+        elif enc["type"] in ["bin", "binning"]:
+            encoder[enc["field"]] = BinEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"], boundaries=enc["boundaries"])
+        elif enc["type"] in ["hier", "hierarchy", "nested"]:
+            encoder[enc["field"]] = HierarchyEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"], similarity_by_depth=enc["similarity_by_depth"])
+        else:
+            raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"],t=enc["type"]))
+    ret["encoders"]=encoder
+    ret["encode_fn"]=lambda d:np.concatenate([e.encode(d[f]) for f,e in encoder.items()])
     return ret
 
 class ColumnEncoder:
     column=''
     column_weight=1
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
     def encode(self, value):
         return np.array([])
 
