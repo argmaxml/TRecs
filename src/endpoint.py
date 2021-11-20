@@ -28,6 +28,11 @@ async def api_encode(data: Dict[str,str]):
     vec = schema["encode_fn"](data)
     return [float(x) for x in vec]
 
+@app.post("/index")
+async def api_index(data: List[Dict[str,str]]):
+    vec = schema["encode_fn"](data)
+    return [float(x) for x in vec]
+
 if __name__=="__main__":
     import uvicorn
     uvicorn.run("__main__:app", host="0.0.0.0", port=5000, log_level="info")

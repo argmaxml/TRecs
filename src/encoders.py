@@ -30,6 +30,7 @@ def parse_schema(schema):
             raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"],t=enc["type"]))
     ret["encoders"]=encoder
     ret["encode_fn"]=lambda d:np.concatenate([e.encode(d[f]) for f,e in encoder.items()])
+    ret["dim"] = sum(map(len,encoder.values()))
     return ret
 
 class ColumnEncoder:
@@ -37,11 +38,15 @@ class ColumnEncoder:
     column_weight=1
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
+    def __len__(self):
+        raise NotImplementedError("len is not implemented")
     def encode(self, value):
         return np.array([])
 
 class OneHotEncoder(ColumnEncoder):
     values=['a','b','c']
+    def __len__(self):
+        return len(self.values)+1
     def encode(self, value):
         vec = np.zeros(1+len(self.values))
         try:
@@ -52,6 +57,8 @@ class OneHotEncoder(ColumnEncoder):
 
 class OrdinalEncoder(ColumnEncoder):
     values=['a','b','c']
+    def __len__(self):
+        return len(self.values)+1
     window=[0.5,1,0.5]
     def encode(self, value):
         assert len(window)%1==1, "Window size should be odd"
@@ -72,6 +79,8 @@ class OrdinalEncoder(ColumnEncoder):
 
 class BinEncoder(ColumnEncoder):
     boundaries = [1,2,3]
+    def __len__(self):
+        return len(self.boundaries)+1
     def encode(self, value):
         vec = np.zeros(2+len(self.boundaries))
         i = 0
@@ -83,6 +92,9 @@ class HierarchyEncoder(ColumnEncoder):
     values={'a':['a1','a2'],'b':['b1', 'b2'],'c':{'c1':['c11','c12']}}
     similarity_by_depth = [1,0.5,0]
 
+    def __len__(self):
+        inner_values = get_values_nested(self.values)
+        return (1+len(inner_values))
     def encode(self, value):
         #TODO: very inefficient: move to constructor
         inner_values = get_values_nested(self.values)
