@@ -2,6 +2,7 @@ FROM pypy:3
 
 
 COPY ./src /app/src/
+COPY ./data /app/data/
 COPY ./requirements.txt /app
 RUN pip install --no-cache-dir -r /app/requirements.txt
 WORKDIR /app/src

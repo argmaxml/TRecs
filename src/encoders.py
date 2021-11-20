@@ -15,7 +15,8 @@ def parse_schema(schema):
     ret = {"metric": schema["metric"]}
     partitions = list(itertools.product(*[f["values"] for f in schema["filters"]]))
     ret["partitions"] = partitions
-    ret["index_num"] = lambda x: partitions.index(at(*[f["field"] for f in schema["filters"]])(x))
+    tup = lambda t: t if type(t)==tuple else (t,)
+    ret["index_num"] = lambda x: partitions.index(tup(at(*[f["field"] for f in schema["filters"]])(x)))
     encoder = dict()
     for enc in schema["encoders"]:
         if enc["type"] in ["onehot","one_hot", "one hot", "oh"]:

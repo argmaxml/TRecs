@@ -1,0 +1,7 @@
+{
+    "hnswlib": {
+        "max_elements":100000,
+        "ef_construction": 200,
+        "M": 16
+    }
+}
