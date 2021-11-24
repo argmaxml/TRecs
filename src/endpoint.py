@@ -1,5 +1,5 @@
 from typing import Optional, List, Dict, Any 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import numpy as np
 import sys, json, itertools
 from fastapi import FastAPI
@@ -13,13 +13,26 @@ model_dir = Path(__file__).absolute().parent.parent / "models"
 app = FastAPI()
 with (data_dir/"config.json").open('r') as f:
     config=json.load(f)
-# TODO: Read from API
-with (data_dir/"schema.json").open('r') as f:
-    schema=encoders.parse_schema(f)
-partitions = [hnswlib.Index(schema["metric"], schema["dim"]) for _ in schema["partitions"]]
-for index in partitions:
-    index.init_index(**config["hnswlib"])
+partitions, schema = None, None
+#with (data_dir/"schema.json").open('r') as f:
+#    schema=encoders.parse_schema(f)
 
+class Column(BaseModel):
+    field: str
+    values: List[str]
+    type: Optional[str]
+    weight: Optional[float]
+
+class Schema(BaseModel):
+    metric: str
+    filters: List[Column]
+    encoders: List[Column]
+    def to_dict(self):
+        return {
+        "metric": self.metric,
+        "filters": [vars(c) for c in self.filters],
+        "encoders": [vars(c) for c in self.encoders],
+        }
 
 class KnnQuery(BaseModel):
 	data: Dict[str,str]
@@ -37,6 +50,15 @@ async def api_partitions():
 async def api_encode(data: Dict[str,str]):
     vec = schema["encode_fn"](data)
     return {"status": "OK", "vec": [float(x) for x in vec]}
+
+@app.post("/init_schema")
+def init_schema(sr: Schema):
+    global schema, partitions
+    schema = encoders.parse_schema(sr.to_dict())
+    partitions = [hnswlib.Index(schema["metric"], schema["dim"]) for _ in schema["partitions"]]
+    for index in partitions:
+        index.init_index(**config["hnswlib"])
+    return {"status": "OK"}
 
 @app.post("/index")
 async def api_index(data: List[Dict[str,str]]):
