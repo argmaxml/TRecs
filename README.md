@@ -5,6 +5,20 @@
    1. `/query` - gets a single item and returns nearest neighbors
 
 # Example data
+## init_schema
+```
+{
+    "filters": [
+        {"field": "country", "values": ["US", "EU"]}
+    ],
+    "encoders": [
+        {"field": "age", "values":["1","2"], "type": "onehot", "weight":1},
+        {"field": "sex", "values":["m","f"], "type": "onehot", "weight":1}
+    ],
+    "metric": "cosine"
+}
+```
+
 ## index
 
 ```
