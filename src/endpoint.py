@@ -22,7 +22,7 @@ for index in partitions:
 
 
 class KnnQuery(BaseModel):
-	data: str
+	data: Dict[str,str]
 	k:int
 
 @app.get("/")
@@ -47,8 +47,10 @@ async def api_index(data: List[Dict[str,str]]):
     affected_partitions = 0
     for idx, grp in itertools.groupby(vecs, at(0)):
         _,items,ids = zip(*grp)
-        partitions[idx].add_items(items, ids)
+        if (partitions[idx].get_max_elements()<len(items)):
+            partitions[idx].resize_index(len(items))
         affected_partitions+=1
+        partitions[idx].add_items(items, ids)
     return {"status": "OK", "affected_partitions": affected_partitions}
 
 @app.post("/query")
@@ -59,9 +61,12 @@ async def api_query(query: KnnQuery):
         return {"status": "error", "message": "Error in partitioning: " + str(e)}
     try:
         vec = schema["encode_fn"](query.data)
-    except:
+    except Exception as e:
         return {"status": "error", "message": "Error in encoding: " +  str(e)}
-    labels, distances = partitions[idx].knn_query(vec, k = query.k)
+    try:
+        labels, distances = partitions[idx].knn_query(vec, k = query.k)
+    except Exception as e:
+        return {"status": "error", "message": "Error in querying: " +  str(e)}
     return {"status":"OK", "ids": [str(l) for l in labels[0]], "distances": [float(d) for d in distances[0]]}
 
 
