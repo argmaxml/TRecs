@@ -40,14 +40,18 @@ class KnnQuery(BaseModel):
 
 @app.get("/")
 async def read_root():
-    return {"status": "OK"}
+    return {"status": "OK", "schema_initialized": schema is not None}
 
 @app.get("/partitions")
 async def api_partitions():
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
     return {"status":"OK", "partitons": schema["partitions"], "n":len(schema["partitions"])}
 
 @app.post("/encode")
 async def api_encode(data: Dict[str,str]):
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
     vec = schema["encode_fn"](data)
     return {"status": "OK", "vec": [float(x) for x in vec]}
 
@@ -62,6 +66,8 @@ def init_schema(sr: Schema):
 
 @app.post("/index")
 async def api_index(data: List[Dict[str,str]]):
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
     try:
         vecs = sorted([(schema["index_num"](datum),schema["encode_fn"](datum), datum["id"]) for datum in data], key=at(0))
     except KeyError as e:
@@ -77,6 +83,8 @@ async def api_index(data: List[Dict[str,str]]):
 
 @app.post("/query")
 async def api_query(query: KnnQuery):
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
     try:
         idx = schema["index_num"](query.data)
     except Exception as e:
