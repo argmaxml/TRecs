@@ -4,7 +4,8 @@
    1. `/index` - gets a list of dicts
    1. `/query` - gets a single item and returns nearest neighbors
 
-# Example data to index
+# Example data
+## index
 
 ```
 [
@@ -33,4 +34,16 @@
     "country":"EU"
   }
 ]
+```
+## Query
+```
+{
+  "k": 2,
+  "data": {
+    "id": "2",
+    "age": "2",
+    "sex": "f",
+    "country":"US"
+  }
+}
 ```
