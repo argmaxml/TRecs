@@ -21,9 +21,9 @@ for index in partitions:
     index.init_index(**config["hnswlib"])
 
 
-class Customer(BaseModel):
-	name: str
-	columns:List[str]
+class KnnQuery(BaseModel):
+	data: str
+	k:int
 
 @app.get("/")
 async def read_root():
@@ -52,17 +52,16 @@ async def api_index(data: List[Dict[str,str]]):
     return {"status": "OK", "affected_partitions": affected_partitions}
 
 @app.post("/query")
-async def api_query(data: Dict[str,str]):
+async def api_query(query: KnnQuery):
     try:
-        idx = schema["index_num"](data)
+        idx = schema["index_num"](query.data)
     except Exception as e:
         return {"status": "error", "message": "Error in partitioning: " + str(e)}
     try:
-        vec = schema["encode_fn"](data)
+        vec = schema["encode_fn"](query.data)
     except:
         return {"status": "error", "message": "Error in encoding: " +  str(e)}
-    #TODO: get k
-    labels, distances = partitions[idx].knn_query(vec, k = 2)
+    labels, distances = partitions[idx].knn_query(vec, k = query.k)
     return {"status":"OK", "ids": [str(l) for l in labels[0]], "distances": [float(d) for d in distances[0]]}
 
 
