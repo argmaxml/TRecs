@@ -14,6 +14,7 @@ app = FastAPI()
 with (data_dir/"config.json").open('r') as f:
     config=json.load(f)
 partitions, schema = None, None
+index_labels = []
 #with (data_dir/"schema.json").open('r') as f:
 #    schema=encoders.parse_schema(f)
 
@@ -67,12 +68,18 @@ async def api_index(data: List[Dict[str,str]]):
     except KeyError as e:
         return {"status": "error", "message": str(e)}
     affected_partitions = 0
+    labels = set(index_labels)
     for idx, grp in itertools.groupby(vecs, at(0)):
         _,items,ids = zip(*grp)
+        for id in ids:
+            if id not in labels:
+                labels.add(id)
+                index_labels.append(id)
         if (partitions[idx].get_max_elements()<len(items)):
             partitions[idx].resize_index(len(items))
         affected_partitions+=1
-        partitions[idx].add_items(items, ids)
+        num_ids = list(map(index_labels.index, ids))
+        partitions[idx].add_items(items, num_ids)
     return {"status": "OK", "affected_partitions": affected_partitions}
 
 @app.post("/query")
@@ -89,7 +96,7 @@ async def api_query(query: KnnQuery):
         labels, distances = partitions[idx].knn_query(vec, k = query.k)
     except Exception as e:
         return {"status": "error", "message": "Error in querying: " +  str(e)}
-    return {"status":"OK", "ids": [str(l) for l in labels[0]], "distances": [float(d) for d in distances[0]]}
+    return {"status":"OK", "ids": [index_labels[l] for l in labels[0]], "distances": [float(d) for d in distances[0]]}
 
 
 
