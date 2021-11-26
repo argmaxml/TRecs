@@ -5,8 +5,8 @@ import sys, json, itertools
 from fastapi import FastAPI
 from operator import itemgetter as at
 from pathlib import Path
-import hnswlib
 sys.path.append("../src")
+from hnsw_helpers import LazyHnsw
 import encoders
 data_dir = Path(__file__).absolute().parent.parent / "data"
 model_dir = Path(__file__).absolute().parent.parent / "models"
@@ -15,8 +15,6 @@ with (data_dir/"config.json").open('r') as f:
     config=json.load(f)
 partitions, schema = None, None
 index_labels = []
-#with (data_dir/"schema.json").open('r') as f:
-#    schema=encoders.parse_schema(f)
 
 class Column(BaseModel):
     field: str
@@ -39,6 +37,7 @@ class KnnQuery(BaseModel):
 	data: Dict[str,str]
 	k:int
 
+
 @app.get("/")
 async def read_root():
     return {"status": "OK", "schema_initialized": schema is not None}
@@ -60,9 +59,9 @@ async def api_encode(data: Dict[str,str]):
 def init_schema(sr: Schema):
     global schema, partitions
     schema = encoders.parse_schema(sr.to_dict())
-    partitions = [hnswlib.Index(schema["metric"], schema["dim"]) for _ in schema["partitions"]]
-    for index in partitions:
-        index.init_index(**config["hnswlib"])
+    partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
+    # for index in partitions:
+        # index.init_index(**config["hnswlib"])
     return {"status": "OK"}
 
 @app.post("/index")
@@ -81,7 +80,7 @@ async def api_index(data: List[Dict[str,str]]):
             if id not in labels:
                 labels.add(id)
                 index_labels.append(id)
-        if (partitions[idx].get_max_elements()<len(items)):
+        if (partitions[idx].max_elements<len(items)):
             partitions[idx].resize_index(len(items))
         affected_partitions+=1
         num_ids = list(map(index_labels.index, ids))
@@ -104,7 +103,11 @@ async def api_query(query: KnnQuery):
         labels, distances = partitions[idx].knn_query(vec, k = query.k)
     except Exception as e:
         return {"status": "error", "message": "Error in querying: " +  str(e)}
-    return {"status":"OK", "ids": [index_labels[l] for l in labels[0]], "distances": [float(d) for d in distances[0]]}
+    ids,distances=[],[]
+    if len(labels)>0:
+        ids = [index_labels[l] for l in labels[0]]
+        distances = [float(d) for d in distances[0]]
+    return {"status":"OK", "ids": ids, "distances": distances}
 
 
 
