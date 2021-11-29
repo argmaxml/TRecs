@@ -104,7 +104,7 @@ async def api_query(query: KnnQuery):
     except Exception as e:
         return {"status": "error", "message": "Error in querying: " +  str(e)}
     ids,distances=[],[]
-    if len(labels)>0:
+    if len(ids)>0:
         ids = [index_labels[l] for l in labels[0]]
         distances = [float(d) for d in distances[0]]
     return {"status":"OK", "ids": ids, "distances": distances}
