@@ -36,7 +36,7 @@ def parse_schema(schema):
         else:
             raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
     ret["encoders"] = encoder
-    ret["encode_fn"] = lambda d: np.concatenate([e.encode(d[f]) for f, e in encoder.items()])
+    ret["encode_fn"] = lambda d: np.concatenate([e.column_weight * e.encode(d[f]) for f, e in encoder.items()])
     ret["dim"] = sum(map(len, encoder.values()))
     return ret
 
@@ -72,11 +72,11 @@ class OneHotEncoder(ColumnEncoder):
 
 class OrdinalEncoder(ColumnEncoder):
     values = ['a', 'b', 'c']
+    window = [0.5, 1, 0.5]
 
     def __len__(self):
         return len(self.values) + 1
 
-    window = [0.5, 1, 0.5]
 
     def encode(self, value):
         assert len(window) % 1 == 1, "Window size should be odd"
