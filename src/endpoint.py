@@ -42,6 +42,7 @@ class Schema(BaseModel):
 class KnnQuery(BaseModel):
     data: Dict[str, str]
     k: int
+    explain:Optional[bool]=False
 
 
 @app.get("/")
@@ -120,7 +121,21 @@ async def api_query(query: KnnQuery):
     else:
         labels = [index_labels[n] for n in num_ids[0]]
         distances = [float(d) for d in distances[0]]
-    return {"status": "OK", "ids": labels, "distances": distances}
+    ret = {"status": "OK", "ids": labels, "distances": distances}
+    if query.explain:
+        explanation = []
+        X = partitions[idx].get_items(num_ids[0])
+        for ret_vec in X:
+            start=0
+            explanation.append({})
+            for col,enc in schema["encoders"].items():
+                end = start + len(enc)
+                ret_part = ret_vec[start:end]
+                query_part =   vec[start:end]
+                explanation[-1][col]=float(np.dot(ret_part,query_part))
+                start = end
+        ret["explanation"]=explanation
+    return ret
 
 
 @app.post("/save")
