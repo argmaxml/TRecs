@@ -123,6 +123,38 @@ async def api_query(query: KnnQuery):
     return {"status": "OK", "ids": labels, "distances": distances}
 
 
+@app.post("/save")
+async def api_save(model_name:str):
+    (model_dir/model_name).mkdir(parents=True, exist_ok=True)
+    with (model_dir/model_name/"index_labels.json").open('w') as f:
+        json.dump(index_labels,f)
+    saved=0
+    for i,p in enumerate(partitions):
+        fname = str(model_dir/model_name/str(i))
+        try:
+            p.save_index(fname)
+            saved+=1
+        except:
+            continue
+    return {"status": "OK", "saved_indices": saved}
+
+@app.post("/load")
+async def api_load(model_name:str):
+    global index_labels, partitions
+    partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
+    (model_dir/model_name).mkdir(parents=True, exist_ok=True)
+    with (model_dir/model_name/"index_labels.json").open('r') as f:
+        index_labels=json.load(f)
+    loaded = 0
+    for i,p in enumerate(partitions):
+        fname = str(model_dir/model_name/str(i))
+        try:
+            p.load_index(fname)
+            loaded+=1
+        except:
+            continue
+    return {"status": "OK", "loaded_indices": loaded}
+
 if __name__ == "__main__":
     import uvicorn
 

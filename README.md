@@ -3,6 +3,8 @@
 
    1. `/index` - gets a list of dicts
    1. `/query` - gets a single item and returns nearest neighbors
+   1. `/save`  - saves model to disk
+   1. `/load`  - loads model from disk
 
 # Example data
 ## init_schema
