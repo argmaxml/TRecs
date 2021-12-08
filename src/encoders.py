@@ -23,6 +23,9 @@ def parse_schema(schema):
         if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
             encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"],
                                                   values=enc["values"])
+        elif enc["type"] in ["strictonehot", "strict_one_hot", "strict one hot", "soh"]:
+            encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                  values=enc["values"])
         elif enc["type"] in ["ordinal", "ordered"]:
             encoder[enc["field"]] = OrdinalEncoder(column=enc["field"], column_weight=enc["weight"],
                                                    values=enc["values"], window=enc["window"])
@@ -68,6 +71,21 @@ class OneHotEncoder(ColumnEncoder):
         except ValueError:  # Unknown
             vec[0] = 1
         return vec
+
+class StrictOneHotEncoder(ColumnEncoder):
+    values = ['a', 'b', 'c']
+
+    def __len__(self):
+        return len(self.values)
+
+    def encode(self, value):
+        vec = np.zeros(len(self.values))
+        try:
+            vec[self.values.index(value)] = 1
+        except ValueError:  # Unknown
+            pass
+        return vec
+
 
 
 class OrdinalEncoder(ColumnEncoder):
