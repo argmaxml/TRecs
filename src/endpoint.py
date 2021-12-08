@@ -68,10 +68,12 @@ async def api_encode(data: Dict[str, str]):
 @app.post("/init_schema")
 def init_schema(sr: Schema):
     global schema, partitions
-    schema = encoders.parse_schema(sr.to_dict())
+    data_dir.mkdir(parents=True, exist_ok=True)
+    schema_dict = sr.to_dict()
+    with (data_dir/"schema.json").open('w') as f:
+        json.dump(schema_dict,f)
+    schema = encoders.parse_schema(schema_dict)
     partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
-    # for index in partitions:
-    # index.init_index(**config["hnswlib"])
     return {"status": "OK"}
 
 
@@ -132,7 +134,11 @@ async def api_query(query: KnnQuery):
                 end = start + len(enc)
                 ret_part = ret_vec[start:end]
                 query_part =   vec[start:end]
-                explanation[-1][col]=float(np.dot(ret_part,query_part))
+                if schema["metric"]=='l2':
+                    sim=np.sqrt(((ret_part-query_part)**2).sum())
+                else:
+                    sim=np.dot(ret_part,query_part)
+                explanation[-1][col]=float(sim)
                 start = end
         ret["explanation"]=explanation
     return ret
@@ -140,6 +146,8 @@ async def api_query(query: KnnQuery):
 
 @app.post("/save")
 async def api_save(model_name:str):
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
     (model_dir/model_name).mkdir(parents=True, exist_ok=True)
     with (model_dir/model_name/"index_labels.json").open('w') as f:
         json.dump(index_labels,f)
@@ -155,7 +163,11 @@ async def api_save(model_name:str):
 
 @app.post("/load")
 async def api_load(model_name:str):
-    global index_labels, partitions
+    global index_labels, partitions, schema
+    with (data_dir/"schema.json").open('r') as f:
+        schema_dict=json.load(f)
+    schema = encoders.parse_schema(schema_dict)
+    partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
     partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
     (model_dir/model_name).mkdir(parents=True, exist_ok=True)
     with (model_dir/model_name/"index_labels.json").open('r') as f:
