@@ -170,6 +170,9 @@ async def api_load(model_name:str):
     global index_labels, partitions, schema
     with (model_dir/model_name/"schema.json").open('r') as f:
         schema_dict=json.load(f)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    with (data_dir/"schema.json").open('w') as f:
+        json.dump(schema_dict,f)
     schema = encoders.parse_schema(schema_dict)
     partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
     (model_dir/model_name).mkdir(parents=True, exist_ok=True)
