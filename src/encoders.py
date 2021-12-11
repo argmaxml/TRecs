@@ -73,6 +73,11 @@ class ColumnEncoder:
         self.cache[value]=ret
         return ret
 
+    def flush_cache(self,new_size=1024):
+        self.cache_max_size=new_size
+        self.cache={}
+        self.cache_hits=collections.defaultdict(int)
+
     def encode(self, value):
         return np.array([])
 
