@@ -1,4 +1,4 @@
-import json, re, itertools
+import json, re, itertools, collections
 from copy import deepcopy as clone
 from operator import itemgetter as at
 import numpy as np
@@ -39,7 +39,7 @@ def parse_schema(schema):
         else:
             raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
     ret["encoders"] = encoder
-    ret["encode_fn"] = lambda d: np.concatenate([e.column_weight * e.encode(d[f]) for f, e in encoder.items()])
+    ret["encode_fn"] = lambda d: np.concatenate([e.column_weight * e(d[f]) for f, e in encoder.items()])
     ret["dim"] = sum(map(len, encoder.values()))
     return ret
 
@@ -47,12 +47,30 @@ def parse_schema(schema):
 class ColumnEncoder:
     column = ''
     column_weight = 1
+    cache={}
+    cache_max_size=1024
+    cache_hits=collections.defaultdict(int)
 
     def __init__(self, **kwargs):
         self.__dict__.update(kwargs)
 
     def __len__(self):
         raise NotImplementedError("len is not implemented")
+
+    def __call__(self, value):
+        if value in self.cache:
+            self.cache_hits[value]+=1
+            return self.cache[value]
+        ret = self.encode(value)
+        if (self.cache_max_size is None) or (len(self.cache)<self.cache_max_size):
+            self.cache[value]=ret
+            return ret
+        # cache cleanup
+        min_key = sorted([(v,k) for k,v in self.cache_hits.items()])[0][1]
+        del self.cache_hits[min_key]
+        del self.cache[min_key]
+        self.cache[value]=ret
+        return ret
 
     def encode(self, value):
         return np.array([])
