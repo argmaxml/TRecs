@@ -39,7 +39,7 @@ def parse_schema(schema):
         else:
             raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
     ret["encoders"] = encoder
-    ret["encode_fn"] = lambda d: np.concatenate([e.column_weight * e(d[f]) for f, e in encoder.items()])
+    ret["encode_fn"] = lambda d: np.concatenate([e(d[f]) for f, e in encoder.items()])
     ret["dim"] = sum(map(len, encoder.values()))
     return ret
 
@@ -58,10 +58,11 @@ class ColumnEncoder:
         raise NotImplementedError("len is not implemented")
 
     def __call__(self, value):
+    """Calls encode, multiplies by weight, cached"""
         if value in self.cache:
             self.cache_hits[value]+=1
             return self.cache[value]
-        ret = self.encode(value)
+        ret = self.encode(value)*self.column_weight
         if (self.cache_max_size is None) or (len(self.cache)<self.cache_max_size):
             self.cache[value]=ret
             return ret
