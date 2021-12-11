@@ -58,7 +58,7 @@ class ColumnEncoder:
         raise NotImplementedError("len is not implemented")
 
     def __call__(self, value):
-    """Calls encode, multiplies by weight, cached"""
+        """Calls encode, multiplies by weight, cached"""
         if value in self.cache:
             self.cache_hits[value]+=1
             return self.cache[value]

@@ -144,13 +144,17 @@ async def api_query(query: KnnQuery):
     return ret
 
 
-@app.post("/save")
+@app.post("/save_model")
 async def api_save(model_name:str):
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
     (model_dir/model_name).mkdir(parents=True, exist_ok=True)
     with (model_dir/model_name/"index_labels.json").open('w') as f:
         json.dump(index_labels,f)
+    with (data_dir/"schema.json").open('r') as f:
+        schema_dict=json.load(f)
+    with (model_dir/model_name/"schema.json").open('w') as f:
+        json.dump(schema_dict,f)
     saved=0
     for i,p in enumerate(partitions):
         fname = str(model_dir/model_name/str(i))
@@ -161,13 +165,12 @@ async def api_save(model_name:str):
             continue
     return {"status": "OK", "saved_indices": saved}
 
-@app.post("/load")
+@app.post("/load_model")
 async def api_load(model_name:str):
     global index_labels, partitions, schema
-    with (data_dir/"schema.json").open('r') as f:
+    with (model_dir/model_name/"schema.json").open('r') as f:
         schema_dict=json.load(f)
     schema = encoders.parse_schema(schema_dict)
-    partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
     partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
     (model_dir/model_name).mkdir(parents=True, exist_ok=True)
     with (model_dir/model_name/"index_labels.json").open('r') as f:
@@ -181,6 +184,10 @@ async def api_load(model_name:str):
         except:
             continue
     return {"status": "OK", "loaded_indices": loaded}
+
+@app.post("/list_models")
+async def api_list():
+    return [d.name for d in model_dir.iterdir() if d.is_dir()]
 
 if __name__ == "__main__":
     import uvicorn
