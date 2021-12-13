@@ -60,7 +60,10 @@ async def read_root():
 async def api_partitions():
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
-    return {"status": "OK", "partitons": schema["partitions"], "n": len(schema["partitions"])}
+    display = lambda t: str(t[0]) if len(t)==1 else str(t)
+    max_elements  = {display(p):partitions[i].max_elements  for i,p in enumerate(schema["partitions"])}
+    element_count = {display(p):partitions[i].element_count for i,p in enumerate(schema["partitions"])}
+    return {"status": "OK", "max_elements": max_elements, "element_count":element_count, "n": len(schema["partitions"])}
 
 
 @app.post("/encode")
