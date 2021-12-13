@@ -16,6 +16,8 @@ class LazyHnsw(hnswlib.Index):
     def add_items(self, data, ids=None, num_threads=-1):
         if self.max_elements == 0:
             self.init()
+        if self.max_elements<len(data)+self.element_count:
+            super().resize_index(max([len(data)+self.element_count,self.max_elements]))
         return super().add_items(data, ids, num_threads)
 
     def get_items(self, ids=None):

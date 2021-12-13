@@ -94,8 +94,8 @@ async def api_index(data: List[Dict[str, str]]):
             if id not in labels:
                 labels.add(id)
                 index_labels.append(id)
-        if (partitions[idx].max_elements < len(items)):
-            partitions[idx].resize_index(len(items))
+        #if (partitions[idx].max_elements < len(items)):
+        #    partitions[idx].resize_index(len(items))
         affected_partitions += 1
         num_ids = list(map(index_labels.index, ids))
         partitions[idx].add_items(items, num_ids)
