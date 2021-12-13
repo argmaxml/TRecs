@@ -5,7 +5,8 @@ import sys, json, itertools
 from fastapi import FastAPI
 from operator import itemgetter as at
 from pathlib import Path
-
+import gc,ctypes
+libc = ctypes.CDLL("libc.so.6")
 sys.path.append("../src")
 from hnsw_helpers import LazyHnsw
 import encoders
@@ -45,6 +46,11 @@ class KnnQuery(BaseModel):
     explain:Optional[bool]=False
 
 
+def free_memory():
+    gc.collect()
+    libc.malloc_trim(0)
+
+
 @app.get("/")
 async def read_root():
     return {"status": "OK", "schema_initialized": schema is not None}
@@ -75,6 +81,7 @@ def init_schema(sr: Schema):
     schema = encoders.parse_schema(schema_dict)
     partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
     enc_sizes = {k:len(v) for k,v in schema["encoders"].items()}
+    free_memory()
     return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"], "feature_sizes":enc_sizes}
 
 
@@ -176,6 +183,7 @@ async def api_load(model_name:str):
         json.dump(schema_dict,f)
     schema = encoders.parse_schema(schema_dict)
     partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
+    free_memory()
     (model_dir/model_name).mkdir(parents=True, exist_ok=True)
     with (model_dir/model_name/"index_labels.json").open('r') as f:
         index_labels=json.load(f)
