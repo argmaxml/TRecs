@@ -74,7 +74,8 @@ def init_schema(sr: Schema):
         json.dump(schema_dict,f)
     schema = encoders.parse_schema(schema_dict)
     partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
-    return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"]}
+    enc_sizes = {k:len(v) for k,v in schema["encoders"].items()}
+    return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"], "feature_sizes":enc_sizes}
 
 
 @app.post("/index")
