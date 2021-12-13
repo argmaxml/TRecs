@@ -30,8 +30,7 @@ def parse_schema(schema):
             encoder[enc["field"]] = OrdinalEncoder(column=enc["field"], column_weight=enc["weight"],
                                                    values=enc["values"], window=enc["window"])
         elif enc["type"] in ["bin", "binning"]:
-            encoder[enc["field"]] = BinEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"],
-                                               boundaries=enc["boundaries"])
+            encoder[enc["field"]] = BinEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"])
         elif enc["type"] in ["hier", "hierarchy", "nested"]:
             encoder[enc["field"]] = HierarchyEncoder(column=enc["field"], column_weight=enc["weight"],
                                                      values=enc["values"],
@@ -46,12 +45,16 @@ def parse_schema(schema):
 
 
 class ColumnEncoder:
-    column = ''
-    column_weight = 1
     cache_max_size=1024
 
     def __init__(self, **kwargs):
+        # defaults:
+        self.column = ''
+        self.column_weight = 1
+        self.values = []
+        # override from kwargs
         self.__dict__.update(kwargs)
+        #caching
         self.cache={}
         self.cache_hits=collections.defaultdict(int)
 
@@ -80,11 +83,10 @@ class ColumnEncoder:
         self.cache_hits=collections.defaultdict(int)
 
     def encode(self, value):
-        return np.array([])
+        raise NotImplementedError("encode is not implemented")
 
 
 class OneHotEncoder(ColumnEncoder):
-    values = ['a', 'b', 'c']
 
     def __len__(self):
         return len(self.values) + 1
@@ -98,7 +100,6 @@ class OneHotEncoder(ColumnEncoder):
         return vec
 
 class StrictOneHotEncoder(ColumnEncoder):
-    values = ['a', 'b', 'c']
 
     def __len__(self):
         return len(self.values)
@@ -114,7 +115,6 @@ class StrictOneHotEncoder(ColumnEncoder):
 
 
 class OrdinalEncoder(ColumnEncoder):
-    values = ['a', 'b', 'c']
     window = [0.5, 1, 0.5]
 
     def __len__(self):
@@ -140,21 +140,20 @@ class OrdinalEncoder(ColumnEncoder):
 
 
 class BinEncoder(ColumnEncoder):
-    boundaries = [1, 2, 3]
 
     def __len__(self):
-        return len(self.boundaries) + 1
+        return len(self.values) + 1
 
     def encode(self, value):
-        vec = np.zeros(2 + len(self.boundaries))
+        vec = np.zeros(2 + len(self.values))
         i = 0
-        while i < len(self.boundaries) and value > self.boundaries[i]:
+        while i < len(self.values) and value > self.values[i]:
             i += 1
         vec[i] = 1
 
 
 class HierarchyEncoder(ColumnEncoder):
-    values = {'a': ['a1', 'a2'], 'b': ['b1', 'b2'], 'c': {'c1': ['c11', 'c12']}}
+    #values = {'a': ['a1', 'a2'], 'b': ['b1', 'b2'], 'c': {'c1': ['c11', 'c12']}}
     similarity_by_depth = [1, 0.5, 0]
 
     def __len__(self):
