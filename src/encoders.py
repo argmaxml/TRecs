@@ -31,6 +31,8 @@ def parse_schema(schema):
                                                    values=enc["values"], window=enc["window"])
         elif enc["type"] in ["bin", "binning"]:
             encoder[enc["field"]] = BinEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"])
+        elif enc["type"] in ["bino", "bin_ordinal", "bin ordinal"]:
+            encoder[enc["field"]] = BinOrdinalEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"])
         elif enc["type"] in ["hier", "hierarchy", "nested"]:
             encoder[enc["field"]] = HierarchyEncoder(column=enc["field"], column_weight=enc["weight"],
                                                      values=enc["values"],
