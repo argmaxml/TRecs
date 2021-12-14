@@ -25,6 +25,7 @@ class Column(BaseModel):
     values: List[str]
     type: Optional[str]
     weight: Optional[float]
+    window: Optional[List[float]]
 
 
 class Schema(BaseModel):
