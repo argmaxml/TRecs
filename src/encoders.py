@@ -26,6 +26,9 @@ def parse_schema(schema):
         elif enc["type"] in ["strictonehot", "strict_one_hot", "strict one hot", "soh"]:
             encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"],
                                                   values=enc["values"])
+        elif enc["type"] in ["num", "numeric"]:
+            encoder[enc["field"]] = NumericEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                  values=enc["values"])
         elif enc["type"] in ["ordinal", "ordered"]:
             encoder[enc["field"]] = OrdinalEncoder(column=enc["field"], column_weight=enc["weight"],
                                                    values=enc["values"], window=enc["window"])
@@ -87,6 +90,15 @@ class ColumnEncoder:
     def encode(self, value):
         raise NotImplementedError("encode is not implemented")
 
+
+class NumericEncoder(ColumnEncoder):
+    def __len__(self):
+        return 1
+    def __call__(self, value):
+        """No caching"""
+        return np.array([value])
+    def encode(self, value):
+        return np.array([value])
 
 class OneHotEncoder(ColumnEncoder):
 
