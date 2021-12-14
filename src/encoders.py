@@ -20,15 +20,19 @@ def parse_schema(schema):
     ret["index_num"] = lambda x: partitions.index(tup(at(*[f["field"] for f in schema["filters"]])(x)))
     encoder = dict()
     for enc in schema["encoders"]:
+        print()
+        print(enc)
+        print()
         if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
             encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"],
                                                   values=enc["values"])
         elif enc["type"] in ["strictonehot", "strict_one_hot", "strict one hot", "soh"]:
+            print(enc["field"])
             encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                  values=enc["values"])
+                                                        values=enc["values"])
         elif enc["type"] in ["num", "numeric"]:
             encoder[enc["field"]] = NumericEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                  values=enc["values"])
+                                                   values=enc["values"])
         elif enc["type"] in ["ordinal", "ordered"]:
             encoder[enc["field"]] = OrdinalEncoder(column=enc["field"], column_weight=enc["weight"],
                                                    values=enc["values"], window=enc["window"])
@@ -114,32 +118,33 @@ class OneHotEncoder(ColumnEncoder):
         return vec
 
 class StrictOneHotEncoder(ColumnEncoder):
-
     def __len__(self):
         return len(self.values)
 
     def encode(self, value):
+        print(value)
         vec = np.zeros(len(self.values))
         try:
             vec[self.values.index(value)] = 1
         except ValueError:  # Unknown
+            print('entered except in strictonehotencoder')
             pass
         return vec
 
-
-
 class OrdinalEncoder(OneHotEncoder):
-    window = [0.5, 1, 0.5]
+    def __init__(self, column, column_weight, values, window):
+        super().__init__(column = column, column_weight=column_weight, values=values, window = window)
+        self.window = window
 
     def encode(self, value):
-        assert len(window) % 1 == 1, "Window size should be odd"
+        assert len(self.window) % 2 == 1, f"Window size should be odd: window: {self.window}, value: {value}"
         vec = np.zeros(1 + len(self.values))
         try:
             ind = self.values.index(value)
         except ValueError:  # Unknown
             vec[0] = 1
             return vec
-        vec[1 + ind] = window[len(self.window) // 2 + 1]
+        vec[1 + ind] = self.window[len(self.window) // 2 + 1]
         for offset in range(len(self.window) // 2):
             if ind - offset >= 0:
                 vec[1 + ind - offset] = self.window[len(self.window) // 2 - offset]
@@ -163,13 +168,16 @@ class BinEncoder(ColumnEncoder):
 
 
 class BinOrdinalEncoder(BinEncoder):
-    window = [0.5, 1, 0.5]
+    def __init__(self, column, column_weight, values, window):
+        super().__init__(column = column, column_weight=column_weight, values=values, window = window)
+        self.window = window
+
     def encode(self, value):
         vec = np.zeros(1 + len(self.values))
         ind = 0
         while ind < len(self.values) and value > self.values[ind]:
             ind += 1
-        vec[ind] = window[len(self.window) // 2 + 1]
+        vec[ind] = self.window[len(self.window) // 2 + 1]
         for offset in range(len(self.window) // 2):
             if ind - offset >= 0:
                 vec[ind - offset] = self.window[len(self.window) // 2 - offset]
