@@ -114,12 +114,8 @@ class StrictOneHotEncoder(ColumnEncoder):
 
 
 
-class OrdinalEncoder(ColumnEncoder):
+class OrdinalEncoder(OneHotEncoder):
     window = [0.5, 1, 0.5]
-
-    def __len__(self):
-        return len(self.values) + 1
-
 
     def encode(self, value):
         assert len(window) % 1 == 1, "Window size should be odd"
@@ -145,11 +141,27 @@ class BinEncoder(ColumnEncoder):
         return len(self.values) + 1
 
     def encode(self, value):
-        vec = np.zeros(2 + len(self.values))
+        vec = np.zeros(1 + len(self.values))
         i = 0
         while i < len(self.values) and value > self.values[i]:
             i += 1
         vec[i] = 1
+
+
+class BinOrdinalEncoder(BinEncoder):
+    window = [0.5, 1, 0.5]
+    def encode(self, value):
+        vec = np.zeros(1 + len(self.values))
+        ind = 0
+        while ind < len(self.values) and value > self.values[ind]:
+            ind += 1
+        vec[ind] = window[len(self.window) // 2 + 1]
+        for offset in range(len(self.window) // 2):
+            if ind - offset >= 0:
+                vec[ind - offset] = self.window[len(self.window) // 2 - offset]
+            if ind + offset < len(self.values):
+                vec[ind + offset] = self.window[len(self.window) // 2 + offset]
+
 
 
 class HierarchyEncoder(ColumnEncoder):
