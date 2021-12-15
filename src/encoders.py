@@ -20,14 +20,10 @@ def parse_schema(schema):
     ret["index_num"] = lambda x: partitions.index(tup(at(*[f["field"] for f in schema["filters"]])(x)))
     encoder = dict()
     for enc in schema["encoders"]:
-        print()
-        print(enc)
-        print()
         if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
             encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"],
                                                   values=enc["values"])
         elif enc["type"] in ["strictonehot", "strict_one_hot", "strict one hot", "soh"]:
-            print(enc["field"])
             encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"],
                                                         values=enc["values"])
         elif enc["type"] in ["num", "numeric"]:
@@ -122,7 +118,6 @@ class StrictOneHotEncoder(ColumnEncoder):
         return len(self.values)
 
     def encode(self, value):
-        print(value)
         vec = np.zeros(len(self.values))
         try:
             vec[self.values.index(value)] = 1
