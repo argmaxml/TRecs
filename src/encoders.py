@@ -53,7 +53,23 @@ def parse_schema(schema):
     return ret
 
 
-class ColumnEncoder:
+class BaseEncoder:
+
+    def __init__(self, **kwargs):
+        self.column = ''
+        self.column_weight = 1
+        self.__dict__.update(kwargs)
+
+    def __len__(self):
+        raise NotImplementedError("len is not implemented")
+
+    def __call__(self, value):
+        return self.column_weight * self.encode(value)
+
+    def encode(self, value):
+        raise NotImplementedError("encode is not implemented")
+
+class CachingEncoder:
     cache_max_size=1024
 
     def __init__(self, **kwargs):
@@ -66,9 +82,6 @@ class ColumnEncoder:
         #caching
         self.cache={}
         self.cache_hits=collections.defaultdict(int)
-
-    def __len__(self):
-        raise NotImplementedError("len is not implemented")
 
     def __call__(self, value):
         """Calls encode, multiplies by weight, cached"""
@@ -91,20 +104,15 @@ class ColumnEncoder:
         self.cache={}
         self.cache_hits=collections.defaultdict(int)
 
-    def encode(self, value):
-        raise NotImplementedError("encode is not implemented")
 
 
-class NumericEncoder(ColumnEncoder):
+class NumericEncoder(BaseEncoder):
     def __len__(self):
         return 1
-    def __call__(self, value):
-        """No caching"""
-        return np.array([value])
     def encode(self, value):
         return np.array([value])
 
-class OneHotEncoder(ColumnEncoder):
+class OneHotEncoder(CachingEncoder):
 
     def __len__(self):
         return len(self.values) + 1
@@ -117,7 +125,7 @@ class OneHotEncoder(ColumnEncoder):
             vec[0] = 1
         return vec
 
-class StrictOneHotEncoder(ColumnEncoder):
+class StrictOneHotEncoder(CachingEncoder):
     def __len__(self):
         return len(self.values)
 
@@ -153,7 +161,7 @@ class OrdinalEncoder(OneHotEncoder):
         return vec
 
 
-class BinEncoder(ColumnEncoder):
+class BinEncoder(CachingEncoder):
 
     def __len__(self):
         return len(self.values) + 1
@@ -185,7 +193,7 @@ class BinOrdinalEncoder(BinEncoder):
 
 
 
-class HierarchyEncoder(ColumnEncoder):
+class HierarchyEncoder(CachingEncoder):
     #values = {'a': ['a1', 'a2'], 'b': ['b1', 'b2'], 'c': {'c1': ['c11', 'c12']}}
     similarity_by_depth = [1, 0.5, 0]
 
@@ -208,7 +216,7 @@ class HierarchyEncoder(ColumnEncoder):
             vec[0] = 1
         return vec
 
-class NumpyEncoder(ColumnEncoder):
+class NumpyEncoder(BaseEncoder):
     def __init__(self, column, column_weight, values, url):
         super().__init__(column = column, column_weight=column_weight, values=values, url=url)
         with open(url, 'rb') as f:
@@ -219,6 +227,7 @@ class NumpyEncoder(ColumnEncoder):
 
     def __len__(self):
         return self.embedding.shape[1]
+
     def encode(self, value):
         try:
             idx = self.ids.index(value)
