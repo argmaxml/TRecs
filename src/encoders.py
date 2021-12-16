@@ -3,6 +3,7 @@ from copy import deepcopy as clone
 from operator import itemgetter as at
 import numpy as np
 from tree_helpers import lowest_depth, get_values_nested
+from smart_open import open
 
 
 def parse_schema(schema):
@@ -40,6 +41,9 @@ def parse_schema(schema):
             encoder[enc["field"]] = HierarchyEncoder(column=enc["field"], column_weight=enc["weight"],
                                                      values=enc["values"],
                                                      similarity_by_depth=enc["similarity_by_depth"])
+        elif enc["type"] in ["numpy", "np", "embedding"]:
+            encoder[enc["field"]] = NumpyEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                        values=enc["values"], url=enc["url"])
         else:
             raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
     ret["encoders"] = encoder
@@ -203,3 +207,23 @@ class HierarchyEncoder(ColumnEncoder):
         except ValueError:  # Unknown
             vec[0] = 1
         return vec
+
+class NumpyEncoder(ColumnEncoder):
+    def __init__(self, column, column_weight, values, url):
+        super().__init__(column = column, column_weight=column_weight, values=values, url=url)
+        with open(url, 'rb') as f:
+            data = np.load(f)
+            self.ids = list(data["ids"])
+            self.embedding = data["embedding"]
+        assert self.embedding.shape[0]==len(self.ids), "Dimension mismatch between ids and embedding"
+
+    def __len__(self):
+        return self.embedding.shape[1]
+    def encode(self, value):
+        try:
+            idx = self.ids.index(value)
+        except ValueError:
+            return np.zeros(self.embedding.shape[1])
+        return self.embedding[idx,:]
+
+

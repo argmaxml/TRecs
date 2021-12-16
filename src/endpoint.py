@@ -26,6 +26,7 @@ class Column(BaseModel):
     type: Optional[str]
     weight: Optional[float]
     window: Optional[List[float]]
+    url: Optional[str]
 
 
 class Schema(BaseModel):
