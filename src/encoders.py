@@ -134,7 +134,6 @@ class StrictOneHotEncoder(CachingEncoder):
         try:
             vec[self.values.index(value)] = 1
         except ValueError:  # Unknown
-            print('entered except in strictonehotencoder')
             pass
         return vec
 
