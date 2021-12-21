@@ -8,8 +8,10 @@ from pathlib import Path
 import gc,ctypes
 libc = ctypes.CDLL("libc.so.6")
 sys.path.append("../src")
-from hnsw_helpers import LazyHnsw
+from similarity_helpers import LazyHnsw, FlatFaiss
 import encoders
+#TODO: make a cofig
+Index = FlatFaiss
 
 data_dir = Path(__file__).absolute().parent.parent / "data"
 model_dir = Path(__file__).absolute().parent.parent / "models"
@@ -63,8 +65,8 @@ async def api_partitions():
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
     display = lambda t: str(t[0]) if len(t)==1 else str(t)
-    max_elements  = {display(p):partitions[i].max_elements  for i,p in enumerate(schema["partitions"])}
-    element_count = {display(p):partitions[i].element_count for i,p in enumerate(schema["partitions"])}
+    max_elements  = {display(p):partitions[i].get_max_elements()  for i,p in enumerate(schema["partitions"])}
+    element_count = {display(p):partitions[i].get_current_count() for i,p in enumerate(schema["partitions"])}
     return {"status": "OK", "max_elements": max_elements, "element_count":element_count, "n": len(schema["partitions"])}
 
 
@@ -84,7 +86,7 @@ def init_schema(sr: Schema):
     with (data_dir/"schema.json").open('w') as f:
         json.dump(schema_dict,f)
     schema = encoders.parse_schema(schema_dict)
-    partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
+    partitions = [Index(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
     enc_sizes = {k:len(v) for k,v in schema["encoders"].items()}
     free_memory()
     return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"], "feature_sizes":enc_sizes}
@@ -107,8 +109,6 @@ async def api_index(data: List[Dict[str, str]]):
             if id not in labels:
                 labels.add(id)
                 index_labels.append(id)
-        #if (partitions[idx].max_elements < len(items)):
-        #    partitions[idx].resize_index(len(items))
         affected_partitions += 1
         num_ids = list(map(index_labels.index, ids))
         partitions[idx].add_items(items, num_ids)
@@ -128,7 +128,8 @@ async def api_query(query: KnnQuery):
     except Exception as e:
         return {"status": "error", "message": "Error in encoding: " + str(e)}
     try:
-        num_ids, distances = partitions[idx].knn_query(vec, k=query.k)
+        vec = vec.reshape(1,-1).astype('float32') # for faiss
+        distances, num_ids = partitions[idx].search(vec, k=query.k)
     except Exception as e:
         return {"status": "error", "message": "Error in querying: " + str(e)}
     if len(num_ids) == 0:
@@ -138,6 +139,7 @@ async def api_query(query: KnnQuery):
         distances = [float(d) for d in distances[0]]
     ret = {"status": "OK", "ids": labels, "distances": distances}
     if query.explain:
+        vec = vec.reshape(-1)
         explanation = []
         X = partitions[idx].get_items(num_ids[0])
         for ret_vec in X:
@@ -187,7 +189,7 @@ async def api_load(model_name:str):
     with (data_dir/"schema.json").open('w') as f:
         json.dump(schema_dict,f)
     schema = encoders.parse_schema(schema_dict)
-    partitions = [LazyHnsw(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
+    partitions = [Index(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
     free_memory()
     (model_dir/model_name).mkdir(parents=True, exist_ok=True)
     with (model_dir/model_name/"index_labels.json").open('r') as f:
