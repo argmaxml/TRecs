@@ -1,4 +1,4 @@
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 import numpy as np
 import sys, json, itertools
@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from operator import itemgetter as at
 from pathlib import Path
 import gc,ctypes
+from smart_open import open
 libc = ctypes.CDLL("libc.so.6")
 sys.path.append("../src")
 from similarity_helpers import LazyHnsw, FlatFaiss
@@ -93,7 +94,11 @@ def init_schema(sr: Schema):
 
 
 @app.post("/index")
-async def api_index(data: List[Dict[str, str]]):
+async def api_index(data: Union[List[Dict[str, str]], str]):
+    if type(data)==str:
+        # read data remotely
+        with open(data, 'r') as f:
+            data = json.load(f)
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
     try:
