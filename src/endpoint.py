@@ -1,45 +1,17 @@
-import os
-from typing import Optional, List, Dict, Any, Union
+from typing import Optional, List, Dict, Any
 from pydantic import BaseModel, Field
 import numpy as np
-import pandas as pd
 import sys, json, itertools
 from fastapi import FastAPI
 from operator import itemgetter as at
 from pathlib import Path
 import gc,ctypes
-from smart_open import open
 libc = ctypes.CDLL("libc.so.6")
 sys.path.append("../src")
 from hnsw_helpers import LazyHnsw
 import encoders
-import boto3
 
 data_dir = Path(__file__).absolute().parent.parent / "data"
-save_dir = Path(__file__).absolute().parent.parent / "data"/'index_data'
-bucket='talent-fabric-data-lake'
-s3 = boto3.resource('s3')
-my_bucket = s3.Bucket(bucket)
-files_list = []
-for object_summary in my_bucket.objects.filter(Prefix="tabsim/new_york_relevant_triplets_to_index/"):
-    boto3.client('s3').download_file(bucket, object_summary.key, f"../data/index_data/part{object_summary.key.split('/')[-1]}")
-    files_list.append(f"../data/index_data/part{object_summary.key.split('/')[-1]}")
-
-ids_list = []
-for f in files_list:
-    if f.endswith('parquet'):
-        df = pd.read_parquet(f)
-        ids_list.extend(df['id'].to_list())
-        str_file = df.to_json(path_or_buf = str(save_dir.resolve()) + '/' + f.split('/')[-1].split('.')[0]+'.json', orient='records')
-        # with (save_dir/(f.split('/')[-1].split('.')[0]+'.json')).open('w') as jsf:
-        #     json.dump(str_file, jsf)
-with open('indexed_ids.txt', 'w') as f:
-    for element in ids_list:
-        f.write(element + "\n")
-
-
-
-boto3.client('s3').upload_file('indexed_ids.txt', bucket,"tabsim/indexed_ids.txt")
 model_dir = Path(__file__).absolute().parent.parent / "models"
 app = FastAPI()
 with (data_dir / "config.json").open('r') as f:
@@ -119,21 +91,7 @@ def init_schema(sr: Schema):
 
 
 @app.post("/index")
-async def api_index(data: Union[List[Dict[str, str]], str]=save_dir):
-    if type(data)==str:
-        # read data remotely
-        data = []
-        flag = 0
-        for f in os.listdir(save_dir):
-            # if flag == 3:
-            #     break
-            if f.endswith('json'):
-                with open(save_dir/f, 'r') as jsf:
-                    datum_file = json.load(jsf)
-                    data.extend(datum_file)
-                    # flag+=1
-        with open('s3://' + bucket + '/tabsim' + "/current_indexed_data.json", 'w') as f:
-            json.dump(data,f)
+async def api_index(data: List[Dict[str, str]]):
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
     try:
@@ -153,8 +111,7 @@ async def api_index(data: Union[List[Dict[str, str]], str]=save_dir):
         #    partitions[idx].resize_index(len(items))
         affected_partitions += 1
         num_ids = list(map(index_labels.index, ids))
-        partitions[idx].add_items(items, num_ids, -1)
-
+        partitions[idx].add_items(items, num_ids)
     return {"status": "OK", "affected_partitions": affected_partitions}
 
 
