@@ -31,6 +31,12 @@ class FlatFaiss:
     def search(self, data, k=1):
         return self.index.search(np.array(data).astype(np.float32),k)
 
+    def save_index(self, fname):
+        return faiss.write_index(self.index, fname)
+
+    def load_index(self, fname):
+        self.index = faiss.read_index(fname)
+
 class LazyHnsw(hnswlib.Index):
     def __init__(self, space, dim, max_elements=1024, ef_construction=200, M=16):
         super().__init__(space, dim)
