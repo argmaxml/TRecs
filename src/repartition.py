@@ -1,4 +1,4 @@
-import json, collections, logging
+import json, collections, logging, os
 import requests
 import numpy as np
 import pandas as pd
@@ -8,7 +8,7 @@ from pathlib import Path
 from joblib import delayed, Parallel
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-data_dir = Path(".").parent.absolute() /"data/ny"
+data_dir = Path(__file__).absolute().parent.parent /"data/ny"
 REPARTITON_LIMIT=10000
 
 with open(data_dir / "schema.json",'r') as f:
@@ -32,16 +32,21 @@ for v in tqdm(partiton_values):
             increment_df = df.iloc[:REPARTITON_LIMIT]
             if len(partitions[f"{v}_{subindex:05d}"])+len(increment_df)>REPARTITON_LIMIT:
                 subindex+=1
-            partitions[f"{v}_{subindex:05d}"]=pd.concat([partitions[v],increment_df])
+            partitions[f"{v}_{subindex:05d}"]=pd.concat([partitions[f"{v}_{subindex:05d}"],increment_df])
             df=df.iloc[REPARTITON_LIMIT:]
             if len(increment_df)>0:
                 subindex+=1
 
 logging.debug("Save to local json files")
-(data_dir/"partitioned").mkdir(exist_ok=True)
+partition_dir=(data_dir/"partitioned")
+partition_dir.mkdir(exist_ok=True)
+# copy schema
+with (partition_dir/"schema.json").open('w') as f:
+    json.dump(schema)
+# save jsons
 j_files = []
 for p,df in partitions.items():
-    j_file = data_dir/"partitioned"/(p+".json")
+    j_file = partition_dir/(p+".json")
     df.to_json(j_file, orient='records')
     j_files.append(j_file)
 
@@ -59,4 +64,6 @@ for jf in tqdm(j_files):
         data = json.load(f)
     arr = fstack(delayed(encode), data)
     np.save(str(jf).replace(".json", ".npy"), arr)
-    jf.unlink()
+    #jf.unlink()
+    os.remove(str(jf))
+
