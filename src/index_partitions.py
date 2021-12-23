@@ -28,7 +28,7 @@ for p in partition_dir.glob("*.npy"):
     if "_" not in p.name:
         continue
     part_name, part_num = p.name.rsplit('_',1)
-    index_num = schema["index_num"(part_num)]
+    index_num = schema["index_num"](part_num)
     logging.debug(part_name)
 # print("Done transforming to json")
 
