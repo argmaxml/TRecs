@@ -18,18 +18,20 @@ partition_dir = Path(__file__).absolute().parent.parent / "data/ny/partitioned"
 data_dir = Path(__file__).absolute().parent.parent / "data"
 model_dir = Path(__file__).absolute().parent.parent / "models/test"
 
-with open(partition_dir / "schema.json",'r') as f:
-    schema = parse_schema(json.load(f))
-
 with (data_dir / "config.json").open('r') as f:
     config = json.load(f)
+logging.debug("Copy Schema")
+with (partition_dir/"schema.json").open('r') as i:
+    with (model_dir/"schema.json").open('w') as o:
+        json.dump(json.load(i),o)
+logging.debug("Start Index")
 
-for p in tqdm(list(partition_dir.glob("*.npy"))):
-    if "_" not in p.name:
-        continue
+#for p in tqdm(list(partition_dir.glob("*.npy"))):
+@delayed
+def index_one_partition(p):
     with p.with_suffix('.meta').open('r') as f:
         meta = json.load(f)
-    index_instance = Index(schema["metric"], schema["dim"], **config["hnswlib"])
+    index_instance = Index(meta["metric"], meta["dim"], **config["hnswlib"])
     try:
         index_instance.load_index(str(model_dir/str(meta["index_num"])))
     except:
@@ -37,11 +39,17 @@ for p in tqdm(list(partition_dir.glob("*.npy"))):
     arr=np.load(p)
     ids=np.arange(meta["start_num_idx"],meta["start_num_idx"]+meta["size"])
     if len(arr)==0:
-        continue
+        return []
     index_instance.add_items(arr,ids)
     index_instance.save_index(str(model_dir/str(meta["index_num"])))
-    #logging.debug(part_name)
-# print("Done transforming to json")
+    return [(int(i),str(l)) for i,l in zip(ids,meta["ids"])]
+
+index_labels = Parallel(-1)([index_one_partition(p) for p in partition_dir.glob("*.npy")])
+index_labels = sorted(sum(index_labels,[]))
+index_labels = [l for i,l in index_labels]
+logging.debug("Save labels")
+with (model_dir/"index_labels.json").open('w') as f:
+    json.dump(index_labels,f)
 
 # with open("schema.json", 'r') as f:
     # schema = json.load(f)
