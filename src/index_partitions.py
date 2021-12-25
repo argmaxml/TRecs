@@ -2,11 +2,14 @@ import json, logging
 import requests
 import numpy as np
 import pandas as pd
+from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
 from joblib import delayed, Parallel
 from encoders import parse_schema
 from similarity_helpers import LazyHnsw, FlatFaiss
+
+start = datetime.now()
 
 index_labels = []
 #TODO: make a cofig
@@ -51,6 +54,8 @@ logging.debug("Save labels")
 with (model_dir/"index_labels.json").open('w') as f:
     json.dump(index_labels,f)
 
+end = datetime.now()
+logging.debug("Took {s} seconds to index".format(s=(end-start).seconds))
 # with open("schema.json", 'r') as f:
     # schema = json.load(f)
 # requests.post("http://127.0.0.1:5000/init_schema", json=schema)
