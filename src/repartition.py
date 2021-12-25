@@ -79,6 +79,8 @@ for jf in tqdm(j_files):
             "partition_name": part_name,
             "partition_number":part_num,
             "index_num":index_num,
+            "metric":schema["metric"],
+            "dim":schema["dim"],
             }
         json.dump(meta,f)
     start_num_idx+=len(arr)

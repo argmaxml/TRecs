@@ -24,29 +24,23 @@ with open(partition_dir / "schema.json",'r') as f:
 with (data_dir / "config.json").open('r') as f:
     config = json.load(f)
 
-REPARTITON_LIMIT=10000
-batch_num=0
 for p in tqdm(list(partition_dir.glob("*.npy"))):
     if "_" not in p.name:
         continue
-    part_name, part_num = p.name.rsplit('_',1)
-    #TODO: support multiple filters
-    filter_by = schema["filters"][0]
-    index_num = schema["index_num"]({filter_by:part_name})
-    
+    with p.with_suffix('.meta').open('r') as f:
+        meta = json.load(f)
     index_instance = Index(schema["metric"], schema["dim"], **config["hnswlib"])
     try:
-        index_instance.load_index(str(model_dir/str(index_num)))
+        index_instance.load_index(str(model_dir/str(meta["index_num"])))
     except:
         pass
     arr=np.load(p)
-    ids=REPARTITON_LIMIT*batch_num+np.arange(len(arr))
+    ids=np.arange(meta["start_num_idx"],meta["start_num_idx"]+meta["size"])
     if len(arr)==0:
         continue
     index_instance.add_items(arr,ids)
-    index_instance.save_index(str(model_dir/str(index_num)))
+    index_instance.save_index(str(model_dir/str(meta["index_num"])))
     #logging.debug(part_name)
-    batch_num+=1
 # print("Done transforming to json")
 
 # with open("schema.json", 'r') as f:
