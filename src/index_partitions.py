@@ -9,29 +9,8 @@ from joblib import delayed, Parallel
 from encoders import parse_schema
 from similarity_helpers import parse_server_name
 
-start = datetime.now()
-
-index_labels = []
-
-logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
-
-partition_dir = Path(__file__).absolute().parent.parent / "data/ny/partitioned"
-data_dir = Path(__file__).absolute().parent.parent / "data"
-model_dir = Path(__file__).absolute().parent.parent / "models/test"
-
-with (data_dir / "config.json").open('r') as f:
-    config = json.load(f)
-Index = parse_server_name(config["similarity_engine"])
-sim_params=config[config["similarity_engine"]]
-logging.debug("Copy Schema")
-with (partition_dir/"schema.json").open('r') as i:
-    with (model_dir/"schema.json").open('w') as o:
-        json.dump(json.load(i),o)
-logging.debug("Start Index")
-
-#for p in tqdm(list(partition_dir.glob("*.npy"))):
 @delayed
-def index_one_partition(p):
+def index_one_partition(p, model_dir):
     with p.with_suffix('.meta').open('r') as f:
         meta = json.load(f)
     index_instance = Index(meta["metric"], meta["dim"], **sim_params)
@@ -47,17 +26,41 @@ def index_one_partition(p):
     index_instance.save_index(str(model_dir/str(meta["index_num"])))
     return [(int(i),str(l)) for i,l in zip(ids,meta["ids"])]
 
-index_labels = Parallel(-1)([index_one_partition(p) for p in partition_dir.glob("*.npy")])
-index_labels = sorted(sum(index_labels,[]))
-index_labels = [l for i,l in index_labels]
-logging.debug("Save labels")
-with (model_dir/"index_labels.json").open('w') as f:
-    json.dump(index_labels,f)
 
-end = datetime.now()
-logging.debug("Took {s} seconds to index".format(s=(end-start).seconds))
-# with open("schema.json", 'r') as f:
-    # schema = json.load(f)
-# requests.post("http://127.0.0.1:5000/init_schema", json=schema)
-# for f in tqdm(j_files):
-    # print(requests.post("http://127.0.0.1:5000/index", json=f).json())
+def main(args):
+    with Path(args.config_file).open('r') as f:
+        config = json.load(f)
+    Index = parse_server_name(config["similarity_engine"])
+    sim_params=config[config["similarity_engine"]]
+    partition_dir = Path(args.partition_dir)
+    model_dir     = Path(args.model_dir)
+    logging.debug("Copy Schema")
+    with (partition_dir/"schema.json").open('r') as i:
+        with (model_dir/"schema.json").open('w') as o:
+            json.dump(json.load(i),o)
+
+
+    logging.debug("Start Index")
+    start = datetime.now()
+    index_labels = Parallel(-1)([index_one_partition(p,model_dir) for p in partition_dir.glob("*.npy")])
+    index_labels = sorted(sum(index_labels,[]))
+    index_labels = [l for i,l in index_labels]
+    logging.debug("Save labels")
+    with (model_dir/"index_labels.json").open('w') as f:
+        json.dump(index_labels,f)
+
+    end = datetime.now()
+    logging.debug("Took {s} seconds to index".format(s=(end-start).seconds))
+    return 0
+
+
+if __name__=="__main__":
+    import sys
+    from argparse import ArgumentParser
+    logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
+    argparse = ArgumentParser()
+    argparse.add_argument('--config_file',   default=str(Path(__file__).absolute().parent.parent / "data" / "config.json")  ,type=str, help='config file')
+    argparse.add_argument('--model_dir',     default=str(Path(__file__).absolute().parent.parent / "models/test")           ,type=str, help='model dir')
+    argparse.add_argument('--partition_dir', default=str(Path(__file__).absolute().parent.parent / "data/ny/partitioned")   ,type=str, help='partition dir')
+    sys.exit(main(argparse.parse_args()))
+
