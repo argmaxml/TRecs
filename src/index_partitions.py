@@ -7,13 +7,11 @@ from pathlib import Path
 from tqdm import tqdm
 from joblib import delayed, Parallel
 from encoders import parse_schema
-from similarity_helpers import LazyHnsw, FlatFaiss
+from similarity_helpers import parse_server_name
 
 start = datetime.now()
 
 index_labels = []
-#TODO: make a cofig
-Index = FlatFaiss
 
 logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
 
@@ -23,6 +21,8 @@ model_dir = Path(__file__).absolute().parent.parent / "models/test"
 
 with (data_dir / "config.json").open('r') as f:
     config = json.load(f)
+Index = parse_server_name(config["similarity_engine"])
+sim_params=config[config["similarity_engine"]]
 logging.debug("Copy Schema")
 with (partition_dir/"schema.json").open('r') as i:
     with (model_dir/"schema.json").open('w') as o:
@@ -34,7 +34,7 @@ logging.debug("Start Index")
 def index_one_partition(p):
     with p.with_suffix('.meta').open('r') as f:
         meta = json.load(f)
-    index_instance = Index(meta["metric"], meta["dim"], **config["hnswlib"])
+    index_instance = Index(meta["metric"], meta["dim"], **sim_params)
     try:
         index_instance.load_index(str(model_dir/str(meta["index_num"])))
     except:

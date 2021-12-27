@@ -21,7 +21,6 @@ partition_dir.mkdir(exist_ok=True)
 with (partition_dir/"schema.json").open('w') as f:
     json.dump(schema, f)
 #
-partiton_field = schema["filters"][0]["field"]
 
 schema = parse_schema(schema)
 encode = schema["encode_fn"]

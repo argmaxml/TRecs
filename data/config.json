@@ -3,5 +3,8 @@
         "max_elements":10240,
         "ef_construction": 200,
         "M": 16
-    }
+    },
+    "faiss": {
+    }, 
+    "similarity_engine": "hnswlib"
 }

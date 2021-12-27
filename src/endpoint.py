@@ -9,16 +9,16 @@ import gc,ctypes
 from smart_open import open
 libc = ctypes.CDLL("libc.so.6")
 sys.path.append("../src")
-from similarity_helpers import LazyHnsw, FlatFaiss
+from similarity_helpers import parse_server_name
 import encoders
-#TODO: make a cofig
-Index = FlatFaiss
 
 data_dir = Path(__file__).absolute().parent.parent / "data"
 model_dir = Path(__file__).absolute().parent.parent / "models"
 app = FastAPI()
 with (data_dir / "config.json").open('r') as f:
     config = json.load(f)
+sim_params=config[config["similarity_engine"]]
+Index = parse_server_name(config["similarity_engine"])
 partitions, schema = None, None
 index_labels = []
 
@@ -87,7 +87,7 @@ def init_schema(sr: Schema):
     with (data_dir/"schema.json").open('w') as f:
         json.dump(schema_dict,f)
     schema = encoders.parse_schema(schema_dict)
-    partitions = [Index(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
+    partitions = [Index(schema["metric"], schema["dim"], **sim_params) for _ in schema["partitions"]]
     enc_sizes = {k:len(v) for k,v in schema["encoders"].items()}
     free_memory()
     return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"], "feature_sizes":enc_sizes}
@@ -194,7 +194,7 @@ async def api_load(model_name:str):
     with (data_dir/"schema.json").open('w') as f:
         json.dump(schema_dict,f)
     schema = encoders.parse_schema(schema_dict)
-    partitions = [Index(schema["metric"], schema["dim"], **config["hnswlib"]) for _ in schema["partitions"]]
+    partitions = [Index(schema["metric"], schema["dim"], **sim_params) for _ in schema["partitions"]]
     free_memory()
     (model_dir/model_name).mkdir(parents=True, exist_ok=True)
     with (model_dir/model_name/"index_labels.json").open('r') as f:

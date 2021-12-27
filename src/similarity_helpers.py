@@ -2,6 +2,13 @@ import hnswlib
 import faiss
 import numpy as np
 
+def parse_server_name(sname):
+    if sname in ["hnswlib", "hnsw"]:
+        return LazyHnsw
+    elif sname in ["faiss", "flatfaiss"]:
+        return FlatFaiss
+    raise TypeError(str(sname) + " is not a valid similarity server name")
+
 class FlatFaiss:
     def __init__(self, space, dim, **kwargs):
         if space in ['ip', 'cosine']:
@@ -90,3 +97,4 @@ class LazyHnsw(hnswlib.Index):
 
     def get_current_count(self):
         return self.element_count
+
