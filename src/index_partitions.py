@@ -10,9 +10,10 @@ from encoders import parse_schema
 from similarity_helpers import parse_server_name
 
 @delayed
-def index_one_partition(p, model_dir):
+def index_one_partition(p, model_dir, sname, **sim_params):
     with p.with_suffix('.meta').open('r') as f:
         meta = json.load(f)
+    Index = parse_server_name(sname)
     index_instance = Index(meta["metric"], meta["dim"], **sim_params)
     try:
         index_instance.load_index(str(model_dir/str(meta["index_num"])))
@@ -42,7 +43,7 @@ def main(args):
 
     logging.debug("Start Index")
     start = datetime.now()
-    index_labels = Parallel(-1)([index_one_partition(p,model_dir) for p in partition_dir.glob("*.npy")])
+    index_labels = Parallel(-1)([index_one_partition(p,model_dir,config["similarity_engine"],**config[config["similarity_engine"]]) for p in partition_dir.glob("*.npy")])
     index_labels = sorted(sum(index_labels,[]))
     index_labels = [l for i,l in index_labels]
     logging.debug("Save labels")
