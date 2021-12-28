@@ -15,10 +15,11 @@ def parse_schema(schema):
     assert "filters" in schema, "filters not in schema"
     assert "encoders" in schema, "encoders not in schema"
     ret = {"metric": schema["metric"]}
+    ret["filters"]=[f["field"] for f in schema["filters"]]
     partitions = list(itertools.product(*[f["values"] for f in schema["filters"]]))
     ret["partitions"] = partitions
     tup = lambda t: t if type(t) == tuple else (t,)
-    ret["index_num"] = lambda x: partitions.index(tup(at(*[f["field"] for f in schema["filters"]])(x)))
+    ret["index_num"] = lambda x: partitions.index(tup(at(*(ret["filters"]))(x)))
     encoder = dict()
     for enc in schema["encoders"]:
         if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
@@ -47,7 +48,7 @@ def parse_schema(schema):
         else:
             raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
     ret["encoders"] = encoder
-    ret["encode_fn"] = lambda d: np.concatenate([e(d[f]) for f, e in encoder.items()])
+    ret["encode_fn"] = lambda d: np.concatenate([e(d[f]) for f, e in encoder.items() if e.column_weight>0])
     #ret["encode_fn"] = lambda d: np.concatenate([e.encode(d[f]) for f, e in encoder.items()])
     ret["dim"] = sum(map(len, encoder.values()))
     return ret
@@ -64,12 +65,12 @@ class BaseEncoder:
         raise NotImplementedError("len is not implemented")
 
     def __call__(self, value):
-        return self.column_weight * self.encode(value)
+        return self.column_weight * self.encode(value) * np.ones(len(self)) * (1/np.sqrt(len(self)))
 
     def encode(self, value):
         raise NotImplementedError("encode is not implemented")
 
-class CachingEncoder:
+class CachingEncoder(BaseEncoder):
     cache_max_size=1024
 
     def __init__(self, **kwargs):
@@ -88,7 +89,7 @@ class CachingEncoder:
         if value in self.cache:
             self.cache_hits[value]+=1
             return self.cache[value]
-        ret = self.encode(value)*self.column_weight
+        ret = self.encode(value)*self.column_weight*np.ones(len(self)) * (1/np.sqrt(len(self)))
         if (self.cache_max_size is None) or (len(self.cache)<self.cache_max_size):
             self.cache[value]=ret
             return ret
