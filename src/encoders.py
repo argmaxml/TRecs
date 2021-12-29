@@ -48,7 +48,7 @@ def parse_schema(schema):
         else:
             raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
     ret["encoders"] = encoder
-    ret["encode_fn"] = lambda d: np.concatenate([e(d[f]) for f, e in encoder.items() if e.column_weight>0])
+    ret["encode_fn"] = lambda d: np.concatenate([e(d[f]) for f, e in encoder.items() if e.column_weight!=0])
     #ret["encode_fn"] = lambda d: np.concatenate([e.encode(d[f]) for f, e in encoder.items()])
     ret["dim"] = sum(map(len, encoder.values()))
     return ret
