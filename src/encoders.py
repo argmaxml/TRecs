@@ -50,7 +50,7 @@ def parse_schema(schema):
     ret["encoders"] = encoder
     ret["encode_fn"] = lambda d: np.concatenate([e(d[f]) for f, e in encoder.items() if e.column_weight!=0])
     #ret["encode_fn"] = lambda d: np.concatenate([e.encode(d[f]) for f, e in encoder.items()])
-    ret["dim"] = sum(map(len, encoder.values()))
+    ret["dim"] = sum(map(len, filter(lambda e: e.column_weight!=0, encoder.values())))
     return ret
 
 
