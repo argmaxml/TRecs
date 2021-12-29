@@ -1,7 +1,8 @@
-import json, logging
+import json, logging, itertools
 import requests
 import numpy as np
 import pandas as pd
+from operator import itemgetter as at
 from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
@@ -9,7 +10,6 @@ from joblib import delayed, Parallel
 from encoders import parse_schema
 from similarity_helpers import parse_server_name
 
-@delayed
 def index_one_partition(p, model_dir, sname, **sim_params):
     with p.with_suffix('.meta').open('r') as f:
         meta = json.load(f)
@@ -28,6 +28,14 @@ def index_one_partition(p, model_dir, sname, **sim_params):
     return [(int(i),str(l)) for i,l in zip(ids,meta["ids"])]
 
 
+@delayed
+def index_several_partition(paths, model_dir, sname, **sim_params):
+    ret = []
+    for p in paths:
+        ret.extend(index_one_partition(p, model_dir, sname, **sim_params))
+    return ret
+
+
 def main(args):
     with Path(args.config_file).open('r') as f:
         config = json.load(f)
@@ -43,7 +51,10 @@ def main(args):
 
     logging.debug("Start Index")
     start = datetime.now()
-    index_labels = Parallel(-1)([index_one_partition(p,model_dir,config["similarity_engine"],**config[config["similarity_engine"]]) for p in partition_dir.glob("*.npy")])
+    #index_labels = Parallel(-1)([index_one_partition(p,model_dir,config["similarity_engine"],**config[config["similarity_engine"]]) for p in partition_dir.glob("*.npy")])
+    partition_data = sorted([(p.name.rsplit(args.partition_sep,1)[0],p) for p in partition_dir.glob("*.npy")])
+    partition_data = [[p for kk, p in grp] for k,grp in itertools.groupby(partition_data, key=at(0))]
+    index_labels = Parallel(-1)([index_several_partition(ps,model_dir,config["similarity_engine"],**config[config["similarity_engine"]]) for ps in partition_data])
     index_labels = sorted(sum(index_labels,[]))
     index_labels = [l for i,l in index_labels]
     logging.debug("Save labels")
@@ -63,5 +74,6 @@ if __name__=="__main__":
     argparse.add_argument('--config_file',   default=str(Path(__file__).absolute().parent.parent / "data" / "config.json")  ,type=str, help='config file')
     argparse.add_argument('--model_dir',     default=str(Path(__file__).absolute().parent.parent / "models/test")           ,type=str, help='model dir')
     argparse.add_argument('--partition_dir', default=str(Path(__file__).absolute().parent.parent / "data/ny/partitioned")   ,type=str, help='partition dir')
+    argparse.add_argument('--partition_sep', default='~'   ,type=str, help='partition separator')
     sys.exit(main(argparse.parse_args()))
 
