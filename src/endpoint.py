@@ -1,7 +1,7 @@
 from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 import numpy as np
-import sys, json, itertools
+import sys, json, itertools, collections
 from fastapi import FastAPI
 from operator import itemgetter as at
 from pathlib import Path
@@ -14,7 +14,7 @@ import encoders
 
 data_dir = Path(__file__).absolute().parent.parent / "data"
 model_dir = Path(__file__).absolute().parent.parent / "models"
-app = FastAPI()
+api = FastAPI()
 with (data_dir / "config.json").open('r') as f:
     config = json.load(f)
 sim_params=config[config["similarity_engine"]]
@@ -56,12 +56,12 @@ def free_memory():
     libc.malloc_trim(0)
 
 
-@app.get("/")
+@api.get("/")
 async def read_root():
     return {"status": "OK", "schema_initialized": schema is not None}
 
 
-@app.get("/partitions")
+@api.get("/partitions")
 async def api_partitions():
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
@@ -71,7 +71,26 @@ async def api_partitions():
     return {"status": "OK", "max_elements": max_elements, "element_count":element_count, "n": len(schema["partitions"])}
 
 
-@app.post("/encode")
+@api.post("/fetch")
+def api_fetch(lbls: List[str]):
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
+    if len(index_labels)==0:
+        return {"status": "error", "message": "No items are indexed"}
+    found = set(lbls)&set(index_labels)
+    ids = [index_labels.index(l) for l in found]
+    ret = collections.defaultdict(list)
+    for p,pn in zip(partitions,schema["partitions"]):
+        try:
+            ret[pn].extend([tuple(float(v) for v in vec) for vec in p.get_items(ids)])
+        except:
+            # not found
+            continue
+    ret = map(lambda k,v: (k[0],v) if len(k)==1 else (str(k), v),ret.keys(), ret.values())
+    ret = dict(filter(lambda kv: bool(kv[1]),ret))
+    return ret
+
+@api.post("/encode")
 async def api_encode(data: Dict[str, str]):
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
@@ -79,7 +98,7 @@ async def api_encode(data: Dict[str, str]):
     return {"status": "OK", "vec": [float(x) for x in vec]}
 
 
-@app.post("/init_schema")
+@api.post("/init_schema")
 def init_schema(sr: Schema):
     global schema, partitions
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -90,17 +109,17 @@ def init_schema(sr: Schema):
     partitions = [Index(schema["metric"], schema["dim"], **sim_params) for _ in schema["partitions"]]
     enc_sizes = {k:len(v) for k,v in schema["encoders"].items()}
     free_memory()
-    return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"], "feature_sizes":enc_sizes}
+    return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"], "feature_sizes":enc_sizes, "total_items":len(index_labels)}
 
 
-@app.post("/index")
+@api.post("/index")
 async def api_index(data: Union[List[Dict[str, str]], str]):
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
     if type(data)==str:
         # read data remotely
         with open(data, 'r') as f:
             data = json.load(f)
-    if schema is None:
-        return {"status": "error", "message": "Schema not initialized"}
     try:
         vecs = sorted([(schema["index_num"](datum), schema["encode_fn"](datum), datum["id"]) for datum in data],
                       key=at(0))
@@ -120,10 +139,12 @@ async def api_index(data: Union[List[Dict[str, str]], str]):
     return {"status": "OK", "affected_partitions": affected_partitions}
 
 
-@app.post("/query")
+@api.post("/query")
 async def api_query(query: KnnQuery):
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
+    if len(index_labels)==0:
+        return {"status": "error", "message": "No items are indexed"}
     try:
         idx = schema["index_num"](query.data)
     except Exception as e:
@@ -164,7 +185,7 @@ async def api_query(query: KnnQuery):
     return ret
 
 
-@app.post("/save_model")
+@api.post("/save_model")
 async def api_save(model_name:str):
     if schema is None:
         return {"status": "error", "message": "Schema not initialized"}
@@ -185,7 +206,7 @@ async def api_save(model_name:str):
             continue
     return {"status": "OK", "saved_indices": saved}
 
-@app.post("/load_model")
+@api.post("/load_model")
 async def api_load(model_name:str):
     global index_labels, partitions, schema
     with (model_dir/model_name/"schema.json").open('r') as f:
@@ -209,11 +230,11 @@ async def api_load(model_name:str):
             continue
     return {"status": "OK", "loaded_indices": loaded}
 
-@app.post("/list_models")
+@api.post("/list_models")
 async def api_list():
     return [d.name for d in model_dir.iterdir() if d.is_dir()]
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("__main__:app", host="0.0.0.0", port=5000, log_level="info")
+    uvicorn.run("__main__:api", host="0.0.0.0", port=5000, log_level="info")
