@@ -1,6 +1,16 @@
-import hnswlib
-import faiss
 import numpy as np
+import collections
+try:
+    import hnswlib
+except ModuleNotFoundError:
+    print ("hnswlib not found")
+    HNSWMock = collections.namedtuple("HNSWMock", ("Index", "max_elements"))
+    hnswlib = HNSWMock(None,0)
+try:
+    import faiss
+except ModuleNotFoundError:
+    print ("faiss not found")
+    faiss = None
 
 def parse_server_name(sname):
     if sname in ["hnswlib", "hnsw"]:
