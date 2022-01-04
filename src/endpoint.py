@@ -68,7 +68,7 @@ async def api_partitions():
     display = lambda t: str(t[0]) if len(t)==1 else str(t)
     max_elements  = {display(p):partitions[i].get_max_elements()  for i,p in enumerate(schema["partitions"])}
     element_count = {display(p):partitions[i].get_current_count() for i,p in enumerate(schema["partitions"])}
-    return {"status": "OK", "max_elements": max_elements, "element_count":element_count, "n": len(schema["partitions"])}
+    return {"status": "OK", "max_elements": max_elements, "element_count":element_count, "n": len(schema["partitions"]),"dim":schema["dim"]}
 
 
 @api.post("/fetch")
@@ -179,7 +179,7 @@ async def api_query(query: KnnQuery):
                     sim=np.sqrt(((ret_part-query_part)**2).sum())
                 else:
                     sim=np.dot(ret_part,query_part)
-                explanation[-1][col]=float(sim)
+                explanation[-1][col]=float(sim*enc.column_weight)
                 start = end
         ret["explanation"]=explanation
     return ret
