@@ -168,6 +168,7 @@ async def api_query(query: KnnQuery):
         vec = vec.reshape(-1)
         explanation = []
         X = partitions[idx].get_items(num_ids[0])
+        first_sim = None
         for ret_vec in X:
             start=0
             explanation.append({})
@@ -176,10 +177,16 @@ async def api_query(query: KnnQuery):
                 ret_part = ret_vec[start:end]
                 query_part =   vec[start:end]
                 if schema["metric"]=='l2':
-                    sim=np.sqrt(((ret_part-query_part)**2).sum())
+                    dst=np.sqrt(((ret_part-query_part)**2).sum())
                 else:
                     sim=np.dot(ret_part,query_part)
-                explanation[-1][col]=float(sim*enc.column_weight)
+                    # Correct dot product to be ascending
+                    if first_sim is None:
+                        first_sim = sim
+                        dst = 0
+                    else:
+                        dst = 1-sim/first_sim
+                explanation[-1][col]=float(dst*enc.column_weight)
                 start = end
         ret["explanation"]=explanation
     return ret
