@@ -87,7 +87,7 @@ def main(args):
 			json.dump(meta,f)
 		start_num_idx+=len(arr)
 		#jf.unlink(missing_ok=True) #TODO: why not working ?
-		os.remove(str(jf))
+		# os.remove(str(jf))
 
 
 

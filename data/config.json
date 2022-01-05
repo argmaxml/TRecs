@@ -6,5 +6,5 @@
     },
     "faiss": {
     }, 
-    "similarity_engine": "hnswlib"
+    "similarity_engine": "faiss"
 }

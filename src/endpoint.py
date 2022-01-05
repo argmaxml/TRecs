@@ -68,7 +68,7 @@ async def api_partitions():
     display = lambda t: str(t[0]) if len(t)==1 else str(t)
     max_elements  = {display(p):partitions[i].get_max_elements()  for i,p in enumerate(schema["partitions"])}
     element_count = {display(p):partitions[i].get_current_count() for i,p in enumerate(schema["partitions"])}
-    return {"status": "OK", "max_elements": max_elements, "element_count":element_count, "n": len(schema["partitions"])}
+    return {"status": "OK", "max_elements": max_elements, "element_count":element_count, "n": len(schema["partitions"]),"dim":schema["dim"]}
 
 
 @api.post("/fetch")
@@ -111,6 +111,19 @@ def init_schema(sr: Schema):
     free_memory()
     return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"], "feature_sizes":enc_sizes, "total_items":len(index_labels)}
 
+@api.post("/get_schema")
+def get_schema():
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
+    else:
+        return schema
+
+@api.post("/get_schema_weights")
+def get_schema():
+    if schema is None:
+        return {"status": "error", "message": "Schema and weights not initialized"}
+    else:
+        return {key: schema['encoders'][key].column_weight for key in schema['encoders']}
 
 @api.post("/index")
 async def api_index(data: Union[List[Dict[str, str]], str]):
@@ -168,6 +181,7 @@ async def api_query(query: KnnQuery):
         vec = vec.reshape(-1)
         explanation = []
         X = partitions[idx].get_items(num_ids[0])
+        first_sim = None
         for ret_vec in X:
             start=0
             explanation.append({})
@@ -176,10 +190,16 @@ async def api_query(query: KnnQuery):
                 ret_part = ret_vec[start:end]
                 query_part =   vec[start:end]
                 if schema["metric"]=='l2':
-                    sim=np.sqrt(((ret_part-query_part)**2).sum())
+                    dst=np.sqrt(((ret_part-query_part)**2).sum())
                 else:
                     sim=np.dot(ret_part,query_part)
-                explanation[-1][col]=float(sim)
+                    # Correct dot product to be ascending
+                    if first_sim is None:
+                        first_sim = sim
+                        dst = 0
+                    else:
+                        dst = 1-sim/first_sim
+                explanation[-1][col]=float(dst*enc.column_weight)
                 start = end
         ret["explanation"]=explanation
     return ret
@@ -237,4 +257,4 @@ async def api_list():
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("__main__:api", host="0.0.0.0", port=5000, log_level="info")
+    uvicorn.run("__main__:api", host="0.0.0.0", port=5001, log_level="info")
