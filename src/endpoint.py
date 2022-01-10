@@ -186,6 +186,9 @@ async def api_query(query: KnnQuery):
             start=0
             explanation.append({})
             for col,enc in schema["encoders"].items():
+                if enc.column_weight==0:
+                    explanation[-1][col] = float(enc.column_weight)
+                    continue
                 end = start + len(enc)
                 ret_part = ret_vec[start:end]
                 query_part =   vec[start:end]
@@ -252,9 +255,11 @@ async def api_load(model_name:str):
 
 @api.post("/list_models")
 async def api_list():
-    return [d.name for d in model_dir.iterdir() if d.is_dir()]
+    ret = [d.name for d in model_dir.iterdir() if d.is_dir()]
+    ret.sort()
+    return ret
 
 if __name__ == "__main__":
     import uvicorn
 
-    uvicorn.run("__main__:api", host="0.0.0.0", port=5001, log_level="info")
+    uvicorn.run("__main__:api", host="0.0.0.0", port=5000, log_level="info")
