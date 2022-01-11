@@ -193,7 +193,8 @@ async def api_query(query: KnnQuery):
                 ret_part = ret_vec[start:end]
                 query_part =   vec[start:end]
                 if schema["metric"]=='l2':
-                    dst=np.sqrt(((ret_part-query_part)**2).sum())
+                    # The returned distance from the similarity server is not squared
+                    dst=((ret_part-query_part)**2).sum()
                 else:
                     sim=np.dot(ret_part,query_part)
                     # Correct dot product to be ascending
