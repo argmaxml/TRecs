@@ -23,10 +23,10 @@ def parse_schema(schema):
     encoder = dict()
     for enc in schema["encoders"]:
         if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
-            encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"]*np.sqrt(len(enc["values"])),
+            encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"],
                                                   values=enc["values"])
         elif enc["type"] in ["strictonehot", "strict_one_hot", "strict one hot", "soh"]:
-            encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"]*np.sqrt(len(enc["values"])),
+            encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"],
                                                         values=enc["values"])
         elif enc["type"] in ["num", "numeric"]:
             encoder[enc["field"]] = NumericEncoder(column=enc["field"], column_weight=enc["weight"],
@@ -59,13 +59,14 @@ class BaseEncoder:
     def __init__(self, **kwargs):
         self.column = ''
         self.column_weight = 1
+        self.nonzero_elements=1
         self.__dict__.update(kwargs)
 
     def __len__(self):
         raise NotImplementedError("len is not implemented")
 
     def __call__(self, value):
-        return self.column_weight * self.encode(value) * np.ones(len(self)) * (1/np.sqrt(len(self)))
+        return self.column_weight * self.encode(value) * np.ones(len(self)) * (1/np.sqrt(self.nonzero_elements))
 
     def encode(self, value):
         raise NotImplementedError("encode is not implemented")
@@ -78,6 +79,7 @@ class CachingEncoder(BaseEncoder):
         self.column = ''
         self.column_weight = 1
         self.values = []
+        self.nonzero_elements=1
         # override from kwargs
         self.__dict__.update(kwargs)
         #caching
@@ -89,7 +91,7 @@ class CachingEncoder(BaseEncoder):
         if value in self.cache:
             self.cache_hits[value]+=1
             return self.cache[value]
-        ret = self.encode(value)*self.column_weight*np.ones(len(self)) * (1/np.sqrt(len(self)))
+        ret = self.encode(value)*self.column_weight*np.ones(len(self)) * (1/np.sqrt(self.nonzero_elements))
         if (self.cache_max_size is None) or (len(self.cache)<self.cache_max_size):
             self.cache[value]=ret
             return ret
@@ -142,6 +144,7 @@ class OrdinalEncoder(OneHotEncoder):
     def __init__(self, column, column_weight, values, window):
         super().__init__(column = column, column_weight=column_weight, values=values, window = window)
         self.window = window
+        self.nonzero_elements=len(window)
 
     def encode(self, value):
         assert len(self.window) % 2 == 1, f"Window size should be odd: window: {self.window}, value: {value}"
@@ -178,6 +181,7 @@ class BinOrdinalEncoder(BinEncoder):
     def __init__(self, column, column_weight, values, window):
         super().__init__(column = column, column_weight=column_weight, values=values, window = window)
         self.window = window
+        self.nonzero_elements=len(window)
 
     def encode(self, value):
         vec = np.zeros(1 + len(self.values))
@@ -196,6 +200,16 @@ class BinOrdinalEncoder(BinEncoder):
 class HierarchyEncoder(CachingEncoder):
     #values = {'a': ['a1', 'a2'], 'b': ['b1', 'b2'], 'c': {'c1': ['c11', 'c12']}}
     similarity_by_depth = [1, 0.5, 0]
+
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        # TODO: Currently this approximation of the nonzero elements assumes:
+        # (1) Two level hirearchy
+        # (2) Approximately equal size of each hierarchy/category
+        # {"A":[1,2,3], "B":[4,5,6]}
+        inner_values = len(get_values_nested(self.values))
+        outer_values = len(self.values.keys())
+        self.nonzero_elements = inner_values / outer_values
 
     def __len__(self):
         inner_values = get_values_nested(self.values)
@@ -224,6 +238,7 @@ class NumpyEncoder(BaseEncoder):
             self.ids = list(data["ids"])
             self.embedding = data["embedding"]
         assert self.embedding.shape[0]==len(self.ids), "Dimension mismatch between ids and embedding"
+        self.nonzero_elements=self.embedding.shape[1]
 
     def __len__(self):
         return self.embedding.shape[1]
