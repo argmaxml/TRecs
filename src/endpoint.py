@@ -202,7 +202,7 @@ async def api_query(query: KnnQuery):
                         dst = 0
                     else:
                         dst = 1-sim/first_sim
-                explanation[-1][col]=float(dst*enc.column_weight)
+                explanation[-1][col]=float(dst)
                 start = end
         ret["explanation"]=explanation
     return ret
