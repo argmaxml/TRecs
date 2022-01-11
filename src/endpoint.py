@@ -111,6 +111,19 @@ def init_schema(sr: Schema):
     free_memory()
     return {"status": "OK", "partitions": len(partitions), "vector_size":schema["dim"], "feature_sizes":enc_sizes, "total_items":len(index_labels)}
 
+@api.post("/get_schema")
+def get_schema():
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
+    else:
+        return schema
+
+@api.post("/get_schema_weights")
+def get_schema():
+    if schema is None:
+        return {"status": "error", "message": "Schema and weights not initialized"}
+    else:
+        return {key: schema['encoders'][key].column_weight for key in schema['encoders']}
 
 @api.post("/index")
 async def api_index(data: Union[List[Dict[str, str]], str]):
@@ -173,6 +186,9 @@ async def api_query(query: KnnQuery):
             start=0
             explanation.append({})
             for col,enc in schema["encoders"].items():
+                if enc.column_weight==0:
+                    explanation[-1][col] = float(enc.column_weight)
+                    continue
                 end = start + len(enc)
                 ret_part = ret_vec[start:end]
                 query_part =   vec[start:end]
@@ -239,7 +255,9 @@ async def api_load(model_name:str):
 
 @api.post("/list_models")
 async def api_list():
-    return [d.name for d in model_dir.iterdir() if d.is_dir()]
+    ret = [d.name for d in model_dir.iterdir() if d.is_dir()]
+    ret.sort()
+    return ret
 
 if __name__ == "__main__":
     import uvicorn

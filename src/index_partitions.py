@@ -42,12 +42,12 @@ def main(args):
     Index = parse_server_name(config["similarity_engine"])
     sim_params=config[config["similarity_engine"]]
     partition_dir = Path(args.partition_dir)
-    model_dir     = Path(args.model_dir)
+    model_dir = Path(args.model_dir)
+    model_dir.mkdir(exist_ok=True)
     logging.debug("Copy Schema")
     with (partition_dir/"schema.json").open('r') as i:
         with (model_dir/"schema.json").open('w') as o:
             json.dump(json.load(i),o)
-
 
     logging.debug("Start Index")
     start = datetime.now()
@@ -72,7 +72,7 @@ if __name__=="__main__":
     logging.basicConfig(format='%(levelname)s:%(message)s', level=logging.DEBUG)
     argparse = ArgumentParser()
     argparse.add_argument('--config_file',   default=str(Path(__file__).absolute().parent.parent / "data" / "config.json")  ,type=str, help='config file')
-    argparse.add_argument('--model_dir',     default=str(Path(__file__).absolute().parent.parent / "models/test")           ,type=str, help='model dir')
+    argparse.add_argument('--model_dir',     default=str(Path(__file__).absolute().parent.parent / f"models/test-{datetime.now().strftime('%Y-%m-%d-%H-%M')}"), type=str, help='model dir')
     argparse.add_argument('--partition_dir', default=str(Path(__file__).absolute().parent.parent / "data/ny/partitioned")   ,type=str, help='partition dir')
     argparse.add_argument('--partition_sep', default='~'   ,type=str, help='partition separator')
     sys.exit(main(argparse.parse_args()))

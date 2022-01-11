@@ -37,8 +37,9 @@ class FlatFaiss:
         self.index.add_with_ids(data, np.array(ids, dtype='int64'))
 
     def get_items(self, ids):
-        recmap = {k:i for i,k in enumerate(faiss.vector_to_array(self.index.id_map))}
-        return np.vstack([self.index.reconstruct(recmap[v]) for v in ids])
+        # recmap = {k:i for i,k in enumerate(faiss.vector_to_array(self.index.id_map))}
+        # return np.vstack([self.index.reconstruct(recmap[v]) for v in ids])
+        return np.vstack([self.index.reconstruct(int(v)) for v in ids])
 
     def get_max_elements(self):
         return -1

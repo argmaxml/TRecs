@@ -23,10 +23,10 @@ def parse_schema(schema):
     encoder = dict()
     for enc in schema["encoders"]:
         if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
-            encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"],
+            encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"]*np.sqrt(len(enc["values"])),
                                                   values=enc["values"])
         elif enc["type"] in ["strictonehot", "strict_one_hot", "strict one hot", "soh"]:
-            encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"],
+            encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"]*np.sqrt(len(enc["values"])),
                                                         values=enc["values"])
         elif enc["type"] in ["num", "numeric"]:
             encoder[enc["field"]] = NumericEncoder(column=enc["field"], column_weight=enc["weight"],
