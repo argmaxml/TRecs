@@ -30,6 +30,10 @@ class Column(BaseModel):
     weight: Optional[float]
     window: Optional[List[float]]
     url: Optional[str]
+    entity: Optional[str]
+    environment: Optional[str]
+    feature: Optional[str]
+    length: Optional[int]
 
 
 class Schema(BaseModel):
