@@ -281,14 +281,18 @@ class QwakEncoder(BaseEncoder):
     def __len__(self):
         return self.length
 
-    def parse_val(self, val):
-        # TODO: actually parse
-        val = val.replace('(', '[').replace(')',']').replace('inf','100')
-        val = eval(val)
-        return val
-
     def encode(self, value):
-        val = self.parse_val(self.get_feature(value))
-        return np.array(val)
+        val = self.get_feature(value)
+        val = val.translate({ord('('):'[',ord(')'):']'})
+        val = json.loads(val)
+        if type(val)==dict: # sparse vector
+            vec = np.zeros(len(self))
+            for k,v in val.items():
+                vec[int(k)]=v
+        elif type(val)==list:
+            vec = np.array(val)
+        else:
+            raise TypeError(str(type(val))+ " is not supported")
+        return vec
 
 
