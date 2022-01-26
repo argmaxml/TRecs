@@ -15,7 +15,7 @@ def get_access_token(api_key):
     return accessToken
 
 
-def get_feature(accessToken, feature_name = "user_rcs_v4.clip_binned",entity_name = "user_id",entity_value = "38"):
+def get_feature(accessToken, feature_name = "csv_bq.vec",entity_name = "user_id",entity_value = "1"):
     url = "https://api.lightricks.qwak.ai/api/v1/features"
     body = {
         "features":[{"batchFeature":{"name": feature_name}}],
@@ -32,4 +32,4 @@ def get_feature(accessToken, feature_name = "user_rcs_v4.clip_binned",entity_nam
 if __name__ == "__main__":
     import os
     accessToken = get_access_token(os.environ["QWAK_API"])
-    print(get_feature(accessToken))
+    print(get_feature(accessToken, "csv_bq.vec","user_id","2"))

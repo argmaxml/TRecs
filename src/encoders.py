@@ -256,9 +256,11 @@ class NumpyEncoder(BaseEncoder):
         return self.embedding[idx,:]
 
 class QwakEncoder(BaseEncoder):
-    def __init__(self, column, column_weight, environment, length, feature_name, entity_name, api_key=os.environ["QWAK_API"]):
+    def __init__(self, column, column_weight, environment, length, entity_name, api_key=None):
         super().__init__(column = column, column_weight=column_weight, length=length,
-            feature_name=feature_name,entity_name=entity_name, environment=environment)
+            entity_name=entity_name, environment=environment)
+        if api_key is None:
+            api_key = os.environ.get("QWAK_API")
         self.init_access_token(api_key)
 
     def init_access_token(self, api_key):
@@ -267,7 +269,7 @@ class QwakEncoder(BaseEncoder):
     def get_feature(self, entity_value):
         url = "https://api."+str(self.environment)+".qwak.ai/api/v1/features"
         body = {
-            "features":[{"batchFeature":{"name": self.feature_name}}],
+            "features":[{"batchFeature":{"name": self.column}}],
             "entity": {"name": self.entity_name, "value": entity_value}
         }
         res = requests.post(url, headers={"Authorization": "Bearer "+self.access_token}, json=body).json()
@@ -281,9 +283,8 @@ class QwakEncoder(BaseEncoder):
     def __len__(self):
         return self.length
 
-    def encode(self, value):
-        val = self.get_feature(value)
-        val = val.translate({ord('('):'[',ord(')'):']'})
+    def json_encode(self, value):
+        val = value.translate({ord('('):'[',ord(')'):']'})
         val = json.loads(val)
         if type(val)==dict: # sparse vector
             vec = np.zeros(len(self))
@@ -295,4 +296,7 @@ class QwakEncoder(BaseEncoder):
             raise TypeError(str(type(val))+ " is not supported")
         return vec
 
+    def encode(self, value):
+        val = self.get_feature(value)
+        return self.json_encode(val)
 
