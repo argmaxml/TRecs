@@ -3,8 +3,11 @@ import requests
 import pandas as pd
 from datetime import datetime
 import qwak
+from qwak.feature_store.entities import ValueType
 from qwak.model.base import QwakModelInterface
 from qwak.feature_store.offline import OfflineFeatureStore
+from qwak.feature_store.online import OnlineFeatureStore
+from qwak.model.schema import ModelSchema, BatchFeature, Entity, Prediction
 
 
 class CompundVectorSearch(QwakModelInterface):
@@ -57,13 +60,21 @@ class CompundVectorSearch(QwakModelInterface):
 
        Returns: a model schema specification
        """
-        pass
+        user = Entity(name='user_id', type=ValueType.STRING.value)
 
-    def initialize_model(self):
-        """ Invoked when a model is loaded at serving time. Called once per model instance initialization. Can be used for
-        loading and storing values that should only be available in a serving setting.
-        """
-        pass
+        model_schema = ModelSchema(
+            entities=[
+                user
+            ],
+            features = [
+                BatchFeature(name="csv_bq.vec", entity=user),
+            ],
+            predictions=[
+                Prediction(name="id", type=str),
+                Prediction(name="distance", type=float),
+            ]
+        )
+        return model_schema
 
     @qwak.analytics()
     def predict(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -73,5 +84,8 @@ class CompundVectorSearch(QwakModelInterface):
 
         Returns: model output (inference results), as a pandas dataframe
         """
-        pass
+        online_feature_store = OnlineFeatureStore()
+        extracted_df = online_feature_store.get_feature_values(self.schema(), df)
         #TODO: tabsim query
+        res = tabsim()
+        return pd.DataFrame({"id": res["ids"], "distance": res["distances"]})

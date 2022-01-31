@@ -1,5 +1,5 @@
-from .model import compund[D
+from .model import CompundVectorSearch
 
 
 def load_model():
-    return compund[D()
+    return CompundVectorSearch()
