@@ -1,4 +1,5 @@
-import json, collections
+import json, collections, itertools, subprocess, sys
+from pathlib import Path
 import requests
 import pandas as pd
 from datetime import datetime
@@ -9,6 +10,16 @@ from qwak.feature_store.offline import OfflineFeatureStore
 from qwak.feature_store.online import OnlineFeatureStore
 from qwak.model.schema import ModelSchema, BatchFeature, Entity, Prediction
 
+__dir__ = Path(__file__).absolute().parent
+
+def bgprocess(p:Path, *args):
+    python = sys.executable
+    p = p.absolute()
+    return subprocess.Popen([python, p.name]+list(args), cwd = str(p.parent))
+
+def config_file(name):
+    with (__dir__.parent/"config"/(name+".json")).open('r') as f:
+        return json.load(f)
 
 class CompundVectorSearch(QwakModelInterface):
     """ The Model class inherit QwakModelInterface base class
@@ -21,6 +32,12 @@ class CompundVectorSearch(QwakModelInterface):
         self.train_size=train_size
         self.feature_set=feature_set
 
+    def __del__(self):
+        try:
+            self.tabsim.kill()
+        except:
+            pass
+
     def build(self):
         """ Responsible for loading the model. This method is invoked during build time (qwak build command)
 
@@ -31,6 +48,9 @@ class CompundVectorSearch(QwakModelInterface):
            >>>     validate_pool = Pool(X_validation, y_validation, cat_features=categorical_features_indices)
            >>>     self.catboost.fit(train_pool, eval_set=validate_pool)
            """
+        #TODO: tabsim path
+        tabsim_path = __dir__.parent.parent / "src" / "endpoint.py"
+        self.tabsim = bgprocess(tabsim_path)
         offline_feature_store = OfflineFeatureStore()
 
         train_df = offline_feature_store.get_sample_data(self.feature_set,number_of_rows=self.train_size)
@@ -39,8 +59,14 @@ class CompundVectorSearch(QwakModelInterface):
             "encoders":[],
             "metric": self.metric,
         }
+        self.k = 2
+        self.tabsim_host = "http://127.0.0.1:5000"
+        schema = config_file("schema")
         #TODO: tabim init_schema
+        requests.post(self.tabsim_host + "/init_schema", json=schema)
         #TODO: tabsim index
+        records = train_df.to_dict(orient="records")
+        requests.post(self.tabsim_host + "/index", json=index)
 
     def schema(self):
         """ Specification of the model inputs and outputs. Optional method
@@ -71,6 +97,7 @@ class CompundVectorSearch(QwakModelInterface):
             ],
             predictions=[
                 Prediction(name="id", type=str),
+                Prediction(name="recommendation", type=str),
                 Prediction(name="distance", type=float),
             ]
         )
@@ -78,14 +105,13 @@ class CompundVectorSearch(QwakModelInterface):
 
     @qwak.analytics()
     def predict(self, df: pd.DataFrame) -> pd.DataFrame:
-        """ Invoked on every API inference request.
-        Args:
-            pd (DataFrame): the inference vector, as a pandas dataframe
-
-        Returns: model output (inference results), as a pandas dataframe
-        """
         online_feature_store = OnlineFeatureStore()
         extracted_df = online_feature_store.get_feature_values(self.schema(), df)
-        #TODO: tabsim query
-        res = tabsim()
-        return pd.DataFrame({"id": res["ids"], "distance": res["distances"]})
+        records = extracted_df.to_dict(orient="records")
+        #TODO: not query once per row
+        similarity_results = []
+        for record in records:
+            treq = requests.post(self.tabsim_host + "/query", json={"data": record, "k": self.k})
+            tres = similarity_results.append((treq).json())
+            similarity_results.extend([(i,r,d) for i,r,d in zip(itertools.repeat(record["id"]), tres["ids"], tres["distances"])])
+        return pd.DataFrame(similarity_results, columns=["id", "recommendation", "distance"])
