@@ -25,10 +25,7 @@ class CompundVectorSearch(QwakModelInterface):
     """ The Model class inherit QwakModelInterface base class
     """
 
-    def __init__(self, filters, encoders, metric="l2", train_size=1e6, feature_set="csv_bq"):
-        self.filters = filters
-        self.encoders = encoders
-        self.metric = metric
+    def __init__(self, train_size=1e6, feature_set="csv_bq"):
         self.train_size=train_size
         self.feature_set=feature_set
 
@@ -54,19 +51,14 @@ class CompundVectorSearch(QwakModelInterface):
         offline_feature_store = OfflineFeatureStore()
 
         train_df = offline_feature_store.get_sample_data(self.feature_set,number_of_rows=self.train_size)
-        tabsim_schema = {
-            "filters":[],
-            "encoders":[],
-            "metric": self.metric,
-        }
         self.k = 2
         self.tabsim_host = "http://127.0.0.1:5000"
         schema = config_file("schema")
-        #TODO: tabim init_schema
+        #TODO: tabsim init_schema
         requests.post(self.tabsim_host + "/init_schema", json=schema)
         #TODO: tabsim index
         records = train_df.to_dict(orient="records")
-        requests.post(self.tabsim_host + "/index", json=index)
+        requests.post(self.tabsim_host + "/index", json=records)
 
     def schema(self):
         """ Specification of the model inputs and outputs. Optional method
