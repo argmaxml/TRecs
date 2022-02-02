@@ -46,6 +46,9 @@ def parse_schema(schema):
         elif enc["type"] in ["numpy", "np", "embedding"]:
             encoder[enc["field"]] = NumpyEncoder(column=enc["field"], column_weight=enc["weight"],
                                                         values=enc["values"], url=enc["url"])
+        elif enc["type"] in ["JSON", "json", "js"]:
+            encoder[enc["field"]] = JSONEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                        values=enc["values"], length=enc["length"])
         elif enc["type"] in ["qwak"]:
             encoder[enc["field"]] = QwakEncoder(column=enc["field"], column_weight=enc["weight"],
                                                         length=enc["length"], entity_name=enc["entity"],
@@ -254,6 +257,24 @@ class NumpyEncoder(BaseEncoder):
         except ValueError:
             return np.zeros(self.embedding.shape[1])
         return self.embedding[idx,:]
+
+class JSONEncoder(CachingEncoder):
+
+    def __len__(self):
+        return self.length
+
+    def encode(self, value):
+        val = value.translate({ord('('):'[',ord(')'):']'})
+        val = json.loads(val)
+        if type(val)==dict: # sparse vector
+            vec = np.zeros(len(self))
+            for k,v in val.items():
+                vec[int(k)]=v
+        elif type(val)==list:
+            vec = np.array(val)
+        else:
+            raise TypeError(str(type(val))+ " is not supported")
+        return vec
 
 class QwakEncoder(BaseEncoder):
     def __init__(self, column, column_weight, environment, length, entity_name, api_key=None):
