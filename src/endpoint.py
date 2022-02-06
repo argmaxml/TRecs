@@ -295,5 +295,9 @@ async def api_list():
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run("__main__:api", host="0.0.0.0", port=5000, log_level="info")
+    from argparse import ArgumentParser
+    argparse = ArgumentParser()
+    argparse.add_argument('--host', default='0.0.0.0', type=str, help='host')
+    argparse.add_argument('--port', default=5000, type=int, help='port')
+    args = argparse.parse_args()
+    uvicorn.run("__main__:api", host=args.host, port=args.port, log_level="info")
