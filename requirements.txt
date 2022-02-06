@@ -6,3 +6,4 @@ uvicorn==0.15.0
 smart_open[s3]~=3.0.0
 joblib==0.17.0
 tqdm==4.62.3
+pandas==1.4.0
