@@ -1,8 +1,9 @@
-import json, re, itertools, collections
+import json, re, itertools, collections, os
 from copy import deepcopy as clone
 from operator import itemgetter as at
 import numpy as np
 from tree_helpers import lowest_depth, get_values_nested
+import requests
 from smart_open import open
 
 
@@ -45,6 +46,13 @@ def parse_schema(schema):
         elif enc["type"] in ["numpy", "np", "embedding"]:
             encoder[enc["field"]] = NumpyEncoder(column=enc["field"], column_weight=enc["weight"],
                                                         values=enc["values"], url=enc["url"])
+        elif enc["type"] in ["JSON", "json", "js"]:
+            encoder[enc["field"]] = JSONEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                        values=enc["values"], length=enc["length"])
+        elif enc["type"] in ["qwak"]:
+            encoder[enc["field"]] = QwakEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                        length=enc["length"], entity_name=enc["entity"],
+                                                        feature_name=enc["feature"], environment=enc["environment"])
         else:
             raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
     ret["encoders"] = encoder
@@ -250,4 +258,66 @@ class NumpyEncoder(BaseEncoder):
             return np.zeros(self.embedding.shape[1])
         return self.embedding[idx,:]
 
+class JSONEncoder(CachingEncoder):
+
+    def __len__(self):
+        return self.length
+
+    def encode(self, value):
+        val = value.translate({ord('('):'[',ord(')'):']'})
+        val = json.loads(val)
+        if type(val)==dict: # sparse vector
+            vec = np.zeros(len(self))
+            for k,v in val.items():
+                vec[int(k)]=v
+        elif type(val)==list:
+            vec = np.array(val)
+        else:
+            raise TypeError(str(type(val))+ " is not supported")
+        return vec
+
+class QwakEncoder(BaseEncoder):
+    def __init__(self, column, column_weight, environment, length, entity_name, api_key=None):
+        super().__init__(column = column, column_weight=column_weight, length=length,
+            entity_name=entity_name, environment=environment)
+        if api_key is None:
+            api_key = os.environ.get("QWAK_API")
+        self.init_access_token(api_key)
+
+    def init_access_token(self, api_key):
+        self.access_token = requests.post("https://grpc.qwak.ai/api/v1/authentication/qwak-api-key", json={"qwakApiKey": api_key}).json()["accessToken"]
+
+    def get_feature(self, entity_value):
+        url = "https://api."+str(self.environment)+".qwak.ai/api/v1/features"
+        body = {
+            "features":[{"batchFeature":{"name": self.column}}],
+            "entity": {"name": self.entity_name, "value": entity_value}
+        }
+        res = requests.post(url, headers={"Authorization": "Bearer "+self.access_token}, json=body).json()
+        # Assuming one returned feature
+        res = list(res["featureValues"][0]["featureValue"].values())[0]
+        # TODO: Do qwak support vector features ?
+        return res
+
+
+
+    def __len__(self):
+        return self.length
+
+    def json_encode(self, value):
+        val = value.translate({ord('('):'[',ord(')'):']'})
+        val = json.loads(val)
+        if type(val)==dict: # sparse vector
+            vec = np.zeros(len(self))
+            for k,v in val.items():
+                vec[int(k)]=v
+        elif type(val)==list:
+            vec = np.array(val)
+        else:
+            raise TypeError(str(type(val))+ " is not supported")
+        return vec
+
+    def encode(self, value):
+        val = self.get_feature(value)
+        return self.json_encode(val)
 

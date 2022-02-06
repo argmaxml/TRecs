@@ -11,6 +11,7 @@ libc = ctypes.CDLL("libc.so.6")
 sys.path.append("../src")
 from similarity_helpers import parse_server_name
 import encoders
+import pandas as pd
 
 data_dir = Path(__file__).absolute().parent.parent / "data"
 model_dir = Path(__file__).absolute().parent.parent / "models"
@@ -30,6 +31,10 @@ class Column(BaseModel):
     weight: Optional[float]
     window: Optional[List[float]]
     url: Optional[str]
+    entity: Optional[str]
+    environment: Optional[str]
+    feature: Optional[str]
+    length: Optional[int]
 
 
 class Schema(BaseModel):
@@ -133,6 +138,34 @@ async def api_index(data: Union[List[Dict[str, str]], str]):
         # read data remotely
         with open(data, 'r') as f:
             data = json.load(f)
+    try:
+        vecs = sorted([(schema["index_num"](datum), schema["encode_fn"](datum), datum["id"]) for datum in data],
+                      key=at(0))
+    except KeyError as e:
+        return {"status": "error", "message": str(e)}
+    affected_partitions = 0
+    labels = set(index_labels)
+    for idx, grp in itertools.groupby(vecs, at(0)):
+        _, items, ids = zip(*grp)
+        for id in ids:
+            if id not in labels:
+                labels.add(id)
+                index_labels.append(id)
+        affected_partitions += 1
+        num_ids = list(map(index_labels.index, ids))
+        partitions[idx].add_items(items, num_ids)
+    return {"status": "OK", "affected_partitions": affected_partitions}
+
+@api.post("/store_index")
+async def api_store_index(data: str):
+    if schema is None:
+        return {"status": "error", "message": "Schema not initialized"}
+    # read data remotely
+    with open(data, 'r') as f:
+        df = pd.DataFrame.read_csv(f)
+    for col, encoder in schema["encoders"].items():
+        df[col] = df[col].apply(encoder.json_encode)
+    ##########
     try:
         vecs = sorted([(schema["index_num"](datum), schema["encode_fn"](datum), datum["id"]) for datum in data],
                       key=at(0))
@@ -262,5 +295,9 @@ async def api_list():
 
 if __name__ == "__main__":
     import uvicorn
-
-    uvicorn.run("__main__:api", host="0.0.0.0", port=5000, log_level="info")
+    from argparse import ArgumentParser
+    argparse = ArgumentParser()
+    argparse.add_argument('--host', default='0.0.0.0', type=str, help='host')
+    argparse.add_argument('--port', default=5000, type=int, help='port')
+    args = argparse.parse_args()
+    uvicorn.run("__main__:api", host=args.host, port=args.port, log_level="info")
