@@ -5,9 +5,15 @@ import sys, json, itertools, collections
 from fastapi import FastAPI
 from operator import itemgetter as at
 from pathlib import Path
-import gc,ctypes
+import gc
 from smart_open import open
-libc = ctypes.CDLL("libc.so.6")
+try:
+    import ctypes
+    libc = ctypes.CDLL("libc.so.6")
+except:
+    # MOCK
+    libc = lambda x:None
+    setattr(libc,"maloc_trim", lambda x:None)
 sys.path.append("../src")
 from similarity_helpers import parse_server_name
 import encoders
