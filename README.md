@@ -1,4 +1,4 @@
-# tabsim - Tabular Similarity Search Server
+# TRecs - Tabular Similarity Search Server
 ## API
 
    1. `/index` - gets a list of dicts
