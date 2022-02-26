@@ -3,21 +3,21 @@ from operator import itemgetter as at
 import numpy as np
 from pathlib import Path
 import encoders
-from similarity_helpers import parse_server_name
+from similarity_helpers import parse_server_name, FlatFaiss
 
-data_dir = Path(__file__).absolute().parent.parent / "data"
 model_dir = Path(__file__).absolute().parent.parent / "models"
-partitions, schema = None, None
-
-with (data_dir / "config.json").open('r') as f:
-    config = json.load(f)
-sim_params=config[config["similarity_engine"]]
-Index = parse_server_name(config["similarity_engine"])
+partitions, schema, Index, sim_params = None, None, None, None
 index_labels = []
 
 
-def init_schema(schema_dict):
-    global schema, partitions
+def init_schema(schema_dict, config=None):
+    global schema, partitions, Index, sim_params
+    if config is None:
+        Index = FlatFaiss
+        sim_params = {}
+    else:
+        sim_params=config[config["similarity_engine"]]
+        Index = parse_server_name(config["similarity_engine"])
     schema = encoders.parse_schema(schema_dict)
     partitions = [Index(schema["metric"], schema["dim"], **sim_params) for _ in schema["partitions"]]
     enc_sizes = {k:len(v) for k,v in schema["encoders"].items()}
@@ -97,8 +97,71 @@ def query(data, k, explain=False):
     return labels,distances, explanation
 
 
+def save_model(model_name, schema_dict):
+    (model_dir/model_name).mkdir(parents=True, exist_ok=True)
+    with (model_dir/model_name/"index_labels.json").open('w') as f:
+        json.dump(index_labels,f)
+    with (model_dir/model_name/"schema.json").open('w') as f:
+        json.dump(schema_dict,f)
+    saved=0
+    for i,p in enumerate(partitions):
+        fname = str(model_dir/model_name/str(i))
+        try:
+            p.save_index(fname)
+            saved+=1
+        except:
+            continue
+    return {"status": "OK", "saved_indices": saved}
+
+def load_model(model_name):
+    global index_labels, partitions, schema
+    with (model_dir/model_name/"schema.json").open('r') as f:
+        schema_dict=json.load(f)
+    schema = encoders.parse_schema(schema_dict)
+    partitions = [Index(schema["metric"], schema["dim"], **sim_params) for _ in partitions]
+    (model_dir/model_name).mkdir(parents=True, exist_ok=True)
+    with (model_dir/model_name/"index_labels.json").open('r') as f:
+        index_labels=json.load(f)
+    loaded = 0
+    for i,p in enumerate(partitions):
+        fname = str(model_dir/model_name/str(i))
+        try:
+            p.load_index(fname)
+            loaded+=1
+        except:
+            continue
+    return loaded, schema_dict
+
+def list_models():
+    ret = [d.name for d in model_dir.iterdir() if d.is_dir()]
+    ret.sort()
+    return ret
+
+def fetch(lbls):
+    found = set(lbls)&set(index_labels)
+    ids = [index_labels.index(l) for l in found]
+    ret = collections.defaultdict(list)
+    for p,pn in zip(partitions,schema["partitions"]):
+        try:
+            ret[pn].extend([tuple(float(v) for v in vec) for vec in p.get_items(ids)])
+        except:
+            # not found
+            continue
+    ret = map(lambda k,v: (k[0],v) if len(k)==1 else (str(k), v),ret.keys(), ret.values())
+    ret = dict(filter(lambda kv: bool(kv[1]),ret))
+    return ret
+
+def encode(data):
+    return schema["encode_fn"](data)
+
 def schema_initialized():
     return (schema is not None)
+
+def get_partition_stats():
+    display = lambda t: str(t[0]) if len(t)==1 else str(t)
+    max_elements  = {display(p):partitions[i].get_max_elements()  for i,p in enumerate(partitioner.get_partitions())}
+    element_count = {display(p):partitions[i].get_current_count() for i,p in enumerate(partitioner.get_partitions())}
+    return {"max_elements": max_elements, "element_count":element_count, "n": len(partitions)}
 
 def get_partitions():
     return schema["partitions"]
