@@ -1,7 +1,9 @@
-import json, itertools, collections
+import json, itertools, collections, sys
 from operator import itemgetter as at
 import numpy as np
 from pathlib import Path
+src = Path(__file__).absolute().parent
+sys.path.append(str(src))
 import encoders
 from similarity_helpers import parse_server_name, FlatFaiss
 
