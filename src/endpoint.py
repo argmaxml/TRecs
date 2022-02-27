@@ -15,12 +15,13 @@ except:
     def free_memory():
         gc.collect()
 sys.path.append("../src")
-import partitioner
+from partitioner import Partitioner
 import pandas as pd
 
 data_dir = Path(__file__).absolute().parent.parent / "data"
 with (data_dir / "config.json").open('r') as f:
     config = json.load(f)
+partitioner = Partitioner(config)
 api = FastAPI()
 
 
@@ -93,7 +94,7 @@ def init_schema(sr: Schema):
     data_dir.mkdir(parents=True, exist_ok=True)
     with (data_dir/"schema.json").open('w') as f:
         json.dump(schema_dict,f)
-    partitions, enc_sizes = partitioner.init_schema(schema_dict, config)
+    partitions, enc_sizes = partitioner.init_schema(schema_dict)
     free_memory()
     return {"status": "OK", "partitions": len(partitions), "vector_size":partitioner.get_embedding_dimension(), "feature_sizes":enc_sizes, "total_items":partitioner.get_total_items()}
 
@@ -139,17 +140,12 @@ async def api_query(query: KnnQuery):
 async def api_save(model_name:str):
     if not partitioner.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
-    with (data_dir/"schema.json").open('r') as f:
-        schema_dict=json.load(f)
-    saved = partitioner.save_model(model_name, schema_dict)
+    saved = partitioner.save_model(model_name)
     return {"status": "OK", "saved_indices": saved}
 
 @api.post("/load_model")
 async def api_load(model_name:str):
-    loaded,schema_dict = partitioner.load_model(model_name)
-    data_dir.mkdir(parents=True, exist_ok=True)
-    with (data_dir/"schema.json").open('w') as f:
-        json.dump(schema_dict,f)
+    loaded = partitioner.load_model(model_name)
     free_memory()
     return {"status": "OK", "loaded_indices": loaded}
 
