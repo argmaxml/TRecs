@@ -16,7 +16,7 @@ setup(
     ],
     long_description="https://github.com/argmaxml/TRecs/blob/master/README.md",
     long_description_content_type="text/markdown",
-    version="0.0.15",
+    version="0.0.16",
     description='',
     author='ArgmaxML',
     author_email='uri@argmax.ml',
