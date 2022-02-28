@@ -20,7 +20,7 @@ def parse_schema(schema):
     partitions = list(itertools.product(*[f["values"] for f in schema["filters"]]))
     ret["partitions"] = partitions
     tup = lambda t: t if type(t) == tuple else (t,)
-    ret["index_num"] = lambda x,partitions=partitions,filters=ret["filters"]: partitions.index(tup(at(*filters)(x)))
+    ret["index_num"] = lambda x,parts=ret["partitions"],filters=ret["filters"]: parts.index(tup(at(*filters)(x)))
     encoder = dict()
     for enc in schema["encoders"]:
         if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:

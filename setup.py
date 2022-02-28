@@ -1,5 +1,6 @@
 from distutils.core import setup
 
+__version__="0.0.17"
 setup(
     name="TRecSys",
     packages=["TRecSys"],
@@ -16,7 +17,7 @@ setup(
     ],
     long_description="https://github.com/argmaxml/TRecs/blob/master/README.md",
     long_description_content_type="text/markdown",
-    version="0.0.16",
+    version=__version__,
     description='',
     author='ArgmaxML',
     author_email='uri@argmax.ml',
