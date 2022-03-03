@@ -6,60 +6,62 @@ from tree_helpers import lowest_depth, get_values_nested
 import requests
 from smart_open import open
 
-
-def parse_schema(schema):
-    if hasattr(schema, 'read'):
-        schema = schema.read()
-    if type(schema) == str:
-        schema = json.loads(schema)
-    assert type(schema) == dict, "Schema type should be a dict"
-    assert "filters" in schema, "filters not in schema"
-    assert "encoders" in schema, "encoders not in schema"
-    ret = {"metric": schema["metric"]}
-    ret["filters"]=[f["field"] for f in schema["filters"]]
-    partitions = list(itertools.product(*[f["values"] for f in schema["filters"]]))
-    ret["partitions"] = partitions
-    tup = lambda t: t if type(t) == tuple else (t,)
-    ret["index_num"] = lambda x,parts=ret["partitions"],filters=ret["filters"]: parts.index(tup(at(*filters)(x)))
-    encoder = dict()
-    for enc in schema["encoders"]:
-        if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
-            encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                  values=enc["values"])
-        elif enc["type"] in ["strictonehot", "strict_one_hot", "strict one hot", "soh"]:
-            encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                        values=enc["values"])
-        elif enc["type"] in ["num", "numeric"]:
-            encoder[enc["field"]] = NumericEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                   values=enc["values"])
-        elif enc["type"] in ["ordinal", "ordered"]:
-            encoder[enc["field"]] = OrdinalEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                   values=enc["values"], window=enc["window"])
-        elif enc["type"] in ["bin", "binning"]:
-            encoder[enc["field"]] = BinEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"])
-        elif enc["type"] in ["bino", "bin_ordinal", "bin ordinal", "ord bin"]:
-            encoder[enc["field"]] = BinOrdinalEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"],window=enc["window"])
-        elif enc["type"] in ["hier", "hierarchy", "nested"]:
-            encoder[enc["field"]] = HierarchyEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                     values=enc["values"],
-                                                     similarity_by_depth=enc["similarity_by_depth"])
-        elif enc["type"] in ["numpy", "np", "embedding"]:
-            encoder[enc["field"]] = NumpyEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                        values=enc["values"], url=enc["url"])
-        elif enc["type"] in ["JSON", "json", "js"]:
-            encoder[enc["field"]] = JSONEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                        values=enc["values"], length=enc["length"])
-        elif enc["type"] in ["qwak"]:
-            encoder[enc["field"]] = QwakEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                        length=enc["length"], entity_name=enc["entity"],
-                                                        feature_name=enc["feature"], environment=enc["environment"])
-        else:
-            raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
-    ret["encoders"] = encoder
-    ret["encode_fn"] = lambda d: np.concatenate([e(d[f]) for f, e in encoder.items() if e.column_weight!=0])
-    #ret["encode_fn"] = lambda d: np.concatenate([e.encode(d[f]) for f, e in encoder.items()])
-    ret["dim"] = sum(map(len, filter(lambda e: e.column_weight!=0, encoder.values())))
-    return ret
+class PartitionSchema:
+    __slots__=["encoders", "filters", "partitions", "dim", "metric"]
+    def __init__(self, schema):
+        if hasattr(schema, 'read'):
+            schema = schema.read()
+        if type(schema) == str:
+            schema = json.loads(schema)
+        assert type(schema) == dict, "Schema type should be a dict"
+        assert "filters" in schema, "filters not in schema"
+        assert "encoders" in schema, "encoders not in schema"
+        self.metric = schema["metric"]
+        self.filters = [f["field"] for f in schema["filters"]]
+        self.partitions = list(itertools.product(*[f["values"] for f in schema["filters"]]))
+        encoder = dict()
+        for enc in schema["encoders"]:
+            if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
+                encoder[enc["field"]] = OneHotEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                    values=enc["values"])
+            elif enc["type"] in ["strictonehot", "strict_one_hot", "strict one hot", "soh"]:
+                encoder[enc["field"]] = StrictOneHotEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                            values=enc["values"])
+            elif enc["type"] in ["num", "numeric"]:
+                encoder[enc["field"]] = NumericEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                    values=enc["values"])
+            elif enc["type"] in ["ordinal", "ordered"]:
+                encoder[enc["field"]] = OrdinalEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                    values=enc["values"], window=enc["window"])
+            elif enc["type"] in ["bin", "binning"]:
+                encoder[enc["field"]] = BinEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"])
+            elif enc["type"] in ["bino", "bin_ordinal", "bin ordinal", "ord bin"]:
+                encoder[enc["field"]] = BinOrdinalEncoder(column=enc["field"], column_weight=enc["weight"], values=enc["values"],window=enc["window"])
+            elif enc["type"] in ["hier", "hierarchy", "nested"]:
+                encoder[enc["field"]] = HierarchyEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                        values=enc["values"],
+                                                        similarity_by_depth=enc["similarity_by_depth"])
+            elif enc["type"] in ["numpy", "np", "embedding"]:
+                encoder[enc["field"]] = NumpyEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                            values=enc["values"], url=enc["url"])
+            elif enc["type"] in ["JSON", "json", "js"]:
+                encoder[enc["field"]] = JSONEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                            values=enc["values"], length=enc["length"])
+            elif enc["type"] in ["qwak"]:
+                encoder[enc["field"]] = QwakEncoder(column=enc["field"], column_weight=enc["weight"],
+                                                            length=enc["length"], entity_name=enc["entity"],
+                                                            feature_name=enc["feature"], environment=enc["environment"])
+            else:
+                raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
+        self.encoders = encoder
+        self.dim = sum(map(len, filter(lambda e: e.column_weight!=0, encoder.values())))
+    def encode(self, x):
+        return np.concatenate([e(x[f]) for f, e in self.encoders.items() if e.column_weight!=0])
+    def partition_num(self, x):
+        t = at(*(self.filters))(x)
+        if type(t)!=tuple:
+            t=(t,)
+        return self.partitions.index(t)
 
 
 class BaseEncoder:

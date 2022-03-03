@@ -4,7 +4,7 @@ import numpy as np
 from pathlib import Path
 src = Path(__file__).absolute().parent
 sys.path.append(str(src))
-import encoders
+from encoders import PartitionSchema
 from similarity_helpers import parse_server_name, FlatFaiss
 
 class Partitioner:
@@ -25,17 +25,17 @@ class Partitioner:
 
     def init_schema(self, schema_dict):
         self.schema_dict = schema_dict
-        self.schema = encoders.parse_schema(schema_dict)
-        self.partitions = [self.Index(self.schema["metric"], self.schema["dim"], **self.sim_params) for _ in self.schema["partitions"]]
-        enc_sizes = {k:len(v) for k,v in self.schema["encoders"].items()}
-        return self.schema["partitions"], enc_sizes
+        self.schema = PartitionSchema(schema_dict)
+        self.partitions = [self.Index(self.schema.metric, self.schema.dim, **self.sim_params) for _ in self.schema.partitions]
+        enc_sizes = {k:len(v) for k,v in self.schema.encoders.items()}
+        return self.schema.partitions, enc_sizes
 
     def index(self, data):
         errors = []
         vecs = []
         for datum in data:
             try:
-                vecs.append((self.schema["index_num"](datum), self.schema["encode_fn"](datum), datum["id"]))
+                vecs.append((self.schema.partition_num(datum), self.schema.encode(datum), datum["id"]))
             except KeyError as e:
                 errors.append((datum, str(e)))
         vecs = sorted(vecs, key=at(0))
@@ -54,11 +54,11 @@ class Partitioner:
 
     def query(self, data, k, explain=False):
         try:
-            idx = self.schema["index_num"](data)
+            idx = self.schema.partition_num(data)
         except Exception as e:
             raise Exception("Error in partitioning: " + str(e))
         try:
-            vec = self.schema["encode_fn"](data)
+            vec = self.schema.encode(data)
         except Exception as e:
             raise Exception("Error in encoding: " + str(e))
         try:
@@ -81,14 +81,14 @@ class Partitioner:
         for ret_vec in X:
             start=0
             explanation.append({})
-            for col,enc in self.schema["encoders"].items():
+            for col,enc in self.schema.encoders.items():
                 if enc.column_weight==0:
                     explanation[-1][col] = float(enc.column_weight)
                     continue
                 end = start + len(enc)
                 ret_part = ret_vec[start:end]
                 query_part =   vec[start:end]
-                if self.schema["metric"]=='l2':
+                if self.schema.metric=='l2':
                     # The returned distance from the similarity server is not squared
                     dst=((ret_part-query_part)**2).sum()
                 else:
@@ -124,8 +124,8 @@ class Partitioner:
         with (self.model_dir/model_name/"schema.json").open('r') as f:
             schema_dict=json.load(f)
         self.schema_dict = schema_dict
-        schema = encoders.parse_schema(schema_dict)
-        partitions = [self.Index(schema["metric"], schema["dim"], **self.sim_params) for _ in self.partitions]
+        schema = PartitionSchema(schema_dict)
+        partitions = [self.Index(schema.metric, schema.dim, **self.sim_params) for _ in self.partitions]
         (self.model_dir/model_name).mkdir(parents=True, exist_ok=True)
         with (self.model_dir/model_name/"index_labels.json").open('r') as f:
             index_labels=json.load(f)
@@ -148,7 +148,7 @@ class Partitioner:
         found = set(lbls) & set(self.index_labels)
         ids = [self.index_labels.index(l) for l in found]
         ret = collections.defaultdict(list)
-        for p,pn in zip(self.partitions, self.schema["partitions"]):
+        for p,pn in zip(self.partitions, self.schema.partitions):
             try:
                 ret[pn].extend([tuple(float(v) for v in vec) for vec in p.get_items(ids)])
             except:
@@ -159,7 +159,7 @@ class Partitioner:
         return ret
 
     def encode(self, data):
-        return self.schema["encode_fn"](data)
+        return self.schema.encode(data)
 
     def schema_initialized(self):
         return (self.schema is not None)
@@ -171,10 +171,10 @@ class Partitioner:
         return {"max_elements": max_elements, "element_count":element_count, "n": len(self.partitions)}
 
     def get_partitions(self):
-        return self.schema["partitions"]
+        return self.schema.partitions
 
     def get_embedding_dimension(self):
-        return self.schema["dim"]
+        return self.schema.dim
 
     def get_total_items(self):
         return len(self.index_labels)
