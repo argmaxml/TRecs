@@ -56,7 +56,7 @@ class Schema(BaseModel):
 
 
 class KnnQuery(BaseModel):
-    data: Dict[str, str]
+    data: Dict[str, Union[List[str],str]]
     k: int
     explain:Optional[bool]=False
 

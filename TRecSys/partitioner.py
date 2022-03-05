@@ -50,18 +50,10 @@ class Partitioner:
             self.partitions[idx].add_items(items, num_ids)
         return errors, affected_partitions
 
-    def query(self, data, k, explain=False):
-        try:
-            idx = self.schema.partition_num(data)
-        except Exception as e:
-            raise Exception("Error in partitioning: " + str(e))
-        try:
-            vec = self.schema.encode(data)
-        except Exception as e:
-            raise Exception("Error in encoding: " + str(e))
+    def query_by_partition_and_vector(self, partition_num, vec, k, explain=False):
         try:
             vec = vec.reshape(1,-1).astype('float32') # for faiss
-            distances, num_ids = self.partitions[idx].search(vec, k=k)
+            distances, num_ids = self.partitions[partition_num].search(vec, k=k)
         except Exception as e:
             raise Exception("Error in querying: " + str(e))
         if len(num_ids) == 0:
@@ -74,7 +66,7 @@ class Partitioner:
 
         vec = vec.reshape(-1)
         explanation = []
-        X = self.partitions[idx].get_items(num_ids[0])
+        X = self.partitions[partition_num].get_items(num_ids[0])
         first_sim = None
         for ret_vec in X:
             start=0
@@ -101,6 +93,28 @@ class Partitioner:
                 start = end
         return labels,distances, explanation
 
+    def query(self, data, k, explain=False):
+        try:
+            partition_nums = self.schema.partition_num(data)
+        except Exception as e:
+            raise Exception("Error in partitioning: " + str(e))
+        try:
+            vec = self.schema.encode(data)
+        except Exception as e:
+            raise Exception("Error in encoding: " + str(e))
+        # Aggregate results if multiple partitions are returned:
+        if type(partition_nums)!=list:
+            partition_nums=[partition_nums]
+        labels,distances,explanation = [], [], []
+        for partition_num in partition_nums:
+            l,d,e = self.query_by_partition_and_vector(partition_num, vec, k, explain)
+            labels.extend(l)
+            distances.extend(d)
+            #TODO: explanation is not supported when having multiple filters
+        labels,distances = zip(*sorted(zip(labels,distances), key=at(1)))
+        return labels,distances,explanation
+
+
 
     def save_model(self, model_name):
         (self.model_dir/model_name).mkdir(parents=True, exist_ok=True)
@@ -125,7 +139,7 @@ class Partitioner:
         partitions = [self.IndexEngine(schema.metric, schema.dim, **self.engine_params) for _ in self.partitions]
         (self.model_dir/model_name).mkdir(parents=True, exist_ok=True)
         with (self.model_dir/model_name/"index_labels.json").open('r') as f:
-            index_labels=json.load(f)
+            self.index_labels=json.load(f)
         loaded = 0
         for i,p in enumerate(partitions):
             fname = str(self.model_dir/model_name/str(i))
@@ -142,15 +156,17 @@ class Partitioner:
         return ret
 
     def fetch(self, lbls):
-        found = set(lbls) & set(self.index_labels)
+        sil = set(self.index_labels)
+        found = [l for l in lbls if l in sil]
         ids = [self.index_labels.index(l) for l in found]
         ret = collections.defaultdict(list)
         for p,pn in zip(self.partitions, self.schema.partitions):
-            try:
-                ret[pn].extend([tuple(float(v) for v in vec) for vec in p.get_items(ids)])
-            except:
-                # not found
-                continue
+            for id in ids:
+                try:
+                    ret[pn].extend([tuple(float(v) for v in vec) for vec in p.get_items([id])])
+                except Exception as e:
+                    # not found
+                    pass
         ret = map(lambda k,v: (k[0],v) if len(k)==1 else (str(k), v),ret.keys(), ret.values())
         ret = dict(filter(lambda kv: bool(kv[1]),ret))
         return ret

@@ -57,10 +57,22 @@ class PartitionSchema:
     def partition_num(self, x):
         if not any(self.filters):
             return 0
-        t = at(*(self.filters))(x)
-        if type(t)!=tuple:
-            t=(t,)
-        return self.partitions.index(t)
+        combined_key = at(*(self.filters))(x)
+        if type(combined_key)!=tuple:
+            combined_key=(combined_key,)
+        if all(type(k)!=list for k in combined_key):
+            # one partition to lookup
+            return self.partitions.index(combined_key)
+        # multiple partitions
+        combined_key_list = []
+        for k in combined_key:
+            if type(k)!=list:
+                k=[k]
+            combined_key_list.append(k)
+        ret = []
+        for combined_key in itertools.product(*combined_key_list):
+            ret.append(self.partitions.index(combined_key))
+        return ret
     def to_dict(self):
         filters = collections.defaultdict(set)
         for i, k in enumerate(self.filters):
