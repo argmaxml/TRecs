@@ -8,14 +8,14 @@ from encoders import PartitionSchema
 from similarity_helpers import parse_server_name, FlatFaiss
 
 class Partitioner:
-    __slots__ = ["schema", "partitions","index_labels", "model_dir", "Index", "sim_params"]
+    __slots__ = ["schema", "partitions","index_labels", "model_dir", "IndexEngine", "engine_params"]
     def __init__(self, config=None):
         if config is None:
-            self.Index = FlatFaiss
-            self.sim_params = {}
+            self.IndexEngine = FlatFaiss
+            self.engine_params = {}
         else:
-            self.sim_params=config[config["similarity_engine"]]
-            self.Index = parse_server_name(config["similarity_engine"])
+            self.engine_params=config[config["similarity_engine"]]
+            self.IndexEngine = parse_server_name(config["similarity_engine"])
         self.model_dir = Path(__file__).absolute().parent.parent / "models"
         self.partitions = None
         self.schema =  None
@@ -24,7 +24,7 @@ class Partitioner:
 
     def init_schema(self, encoders, filters, metric):
         self.schema = PartitionSchema(encoders, filters, metric)
-        self.partitions = [self.Index(self.schema.metric, self.schema.dim, **self.sim_params) for _ in self.schema.partitions]
+        self.partitions = [self.IndexEngine(self.schema.metric, self.schema.dim, **self.engine_params) for _ in self.schema.partitions]
         enc_sizes = {k:len(v) for k,v in self.schema.encoders.items()}
         return self.schema.partitions, enc_sizes
 
@@ -122,7 +122,7 @@ class Partitioner:
         with (self.model_dir/model_name/"schema.json").open('r') as f:
             schema_dict=json.load(f)
         schema = PartitionSchema(*schema_dict)
-        partitions = [self.Index(schema.metric, schema.dim, **self.sim_params) for _ in self.partitions]
+        partitions = [self.IndexEngine(schema.metric, schema.dim, **self.engine_params) for _ in self.partitions]
         (self.model_dir/model_name).mkdir(parents=True, exist_ok=True)
         with (self.model_dir/model_name/"index_labels.json").open('r') as f:
             index_labels=json.load(f)
