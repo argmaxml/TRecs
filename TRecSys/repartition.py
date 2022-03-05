@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 from operator import itemgetter as at
 from tqdm import tqdm
-from encoders import parse_schema
+from encoders import PartitionSchema
 from pathlib import Path
 from joblib import delayed, Parallel
 
@@ -21,15 +21,15 @@ def main(args):
 		json.dump(schema, f)
 	#
 
-	schema = parse_schema(schema)
-	encode = schema["encode_fn"]
+	schema = PartitionSchema(schema)
+	encode = schema.encode
 
 	partitions = collections.defaultdict(pd.DataFrame)
 
 	logging.debug("Repartition")
 	p_files = [f for f in data_dir.glob("*.parquet")]
-	for partition in tqdm(schema["partitions"]):
-		kv=list(zip(schema["filters"],partition))
+	for partition in tqdm(schema.partitions):
+		kv=list(zip(schema.filters,partition))
 		subindex = 0
 		for f in p_files:
 			df = pd.read_parquet(f)
@@ -73,7 +73,7 @@ def main(args):
 		arr = fstack(delayed(encode), data)
 		np.save(jf.with_suffix('.npy'), arr)
 		with jf.with_suffix('.meta').open('w') as f:
-			index_num = schema["index_num"](dict(zip(schema["filters"],partition)))
+			index_num = schema.partition_num(dict(zip(schema.filters,partition)))
 			meta = {
 				"size":len(arr),
 				"start_num_idx":start_num_idx,
@@ -81,8 +81,8 @@ def main(args):
 				"partition": partition,
 				"subindex": subindex,
 				"index_num":index_num,
-				"metric":schema["metric"],
-				"dim":schema["dim"],
+				"metric":schema.metric,
+				"dim":schema.dim,
 				}
 			json.dump(meta,f)
 		start_num_idx+=len(arr)

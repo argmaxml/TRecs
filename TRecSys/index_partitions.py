@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from tqdm import tqdm
 from joblib import delayed, Parallel
-from encoders import parse_schema
+#from encoders import PartitionSchema
 from similarity_helpers import parse_server_name
 
 def index_one_partition(p, model_dir, sname, **sim_params):
