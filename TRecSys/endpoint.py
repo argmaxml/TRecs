@@ -43,9 +43,9 @@ class Column(BaseModel):
 
 
 class Schema(BaseModel):
-    metric: str
-    filters: List[Column]
     encoders: List[Column]
+    metric: Optional[str]='ip'
+    filters: Optional[List[Column]]=[]
 
     def to_dict(self):
         return {

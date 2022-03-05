@@ -10,8 +10,12 @@ class PartitionSchema:
     __slots__=["encoders", "filters", "partitions", "dim", "metric"]
     def __init__(self, encoders, filters=[], metric='ip'):
         self.metric = metric
-        self.filters = [f["field"] for f in filters]
-        self.partitions = list(itertools.product(*[f["values"] for f in filters]))
+        if any(filters):
+            self.filters = [f["field"] for f in filters]
+            self.partitions = list(itertools.product(*[f["values"] for f in filters]))
+        else:
+            self.filters = []
+            self.partitions = [("ALL",)]
         encoder_dict = dict()
         for enc in encoders:
             if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
@@ -51,6 +55,8 @@ class PartitionSchema:
     def encode(self, x):
         return np.concatenate([e(x[f]) for f, e in self.encoders.items() if e.column_weight!=0])
     def partition_num(self, x):
+        if not any(self.filters):
+            return 0
         t = at(*(self.filters))(x)
         if type(t)!=tuple:
             t=(t,)
