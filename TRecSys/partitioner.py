@@ -155,7 +155,7 @@ class Partitioner:
         ret.sort()
         return ret
 
-    def fetch(self, lbls):
+    def fetch(self, lbls, numpy=False):
         sil = set(self.index_labels)
         found = [l for l in lbls if l in sil]
         ids = [self.index_labels.index(l) for l in found]
@@ -163,7 +163,10 @@ class Partitioner:
         for p,pn in zip(self.partitions, self.schema.partitions):
             for id in ids:
                 try:
-                    ret[pn].extend([tuple(float(v) for v in vec) for vec in p.get_items([id])])
+                    if numpy:
+                        ret[pn].extend(p.get_items([id]))
+                    else:
+                        ret[pn].extend([tuple(float(v) for v in vec) for vec in p.get_items([id])])
                 except Exception as e:
                     # not found
                     pass
@@ -191,3 +194,19 @@ class Partitioner:
 
     def get_total_items(self):
         return len(self.index_labels)
+
+class AvgUserPartitioner(Partitioner):
+    def user_partition_mapping(self, user_metadata):
+        # Assumes same features as the item
+        return self.schema.partition_num(user_metadata)
+
+    def user_query(self, user_metadata, user_histories, k):
+        user_partition_num = self.user_partition_mapping(user_metadata)
+        labels,distances = [], []
+        for user_history in user_histories:
+            vec = np.mean([v for vs in self.fetch(user_history, numpy=True).values() for v in vs], axis=0)
+            item_labels,item_distances,_ = self.query_by_partition_and_vector(user_partition_num, vec, k)
+            labels.extend(item_labels)
+            distances.extend(item_distances)
+        return labels,distances
+
