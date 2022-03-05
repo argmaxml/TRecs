@@ -102,9 +102,9 @@ class Partitioner:
             vec = self.schema.encode(data)
         except Exception as e:
             raise Exception("Error in encoding: " + str(e))
-        # Aggregate results if multiple partitions are returned:
         if type(partition_nums)!=list:
-            partition_nums=[partition_nums]
+            return self.query_by_partition_and_vector(partition_num, vec, k, explain)
+        # Aggregate results if multiple partitions are returned:
         labels,distances,explanation = [], [], []
         for partition_num in partition_nums:
             l,d,e = self.query_by_partition_and_vector(partition_num, vec, k, explain)
