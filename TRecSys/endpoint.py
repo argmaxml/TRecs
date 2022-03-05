@@ -94,10 +94,7 @@ async def api_encode(data: Dict[str, str]):
 @api.post("/init_schema")
 def init_schema(sr: Schema):
     schema_dict = sr.to_dict()
-    data_dir.mkdir(parents=True, exist_ok=True)
-    with (data_dir/"schema.json").open('w') as f:
-        json.dump(schema_dict,f)
-    partitions, enc_sizes = partitioner.init_schema(schema_dict)
+    partitions, enc_sizes = partitioner.init_schema(**schema_dict)
     free_memory()
     return {"status": "OK", "partitions": len(partitions), "vector_size":partitioner.get_embedding_dimension(), "feature_sizes":enc_sizes, "total_items":partitioner.get_total_items()}
 
@@ -106,9 +103,7 @@ def get_schema():
     if not partitioner.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
     else:
-        with (data_dir/"schema.json").open('r') as f:
-            schema_dict=json.load(f)
-        return schema_dict
+        return partitioner.schema.to_dict()
 
 @api.post("/index")
 async def api_index(data: Union[List[Dict[str, str]], str]):

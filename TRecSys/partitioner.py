@@ -8,7 +8,7 @@ from encoders import PartitionSchema
 from similarity_helpers import parse_server_name, FlatFaiss
 
 class Partitioner:
-    __slots__ = ["schema", "partitions","index_labels", "model_dir", "Index", "sim_params", "schema_dict"]
+    __slots__ = ["schema", "partitions","index_labels", "model_dir", "Index", "sim_params"]
     def __init__(self, config=None):
         if config is None:
             self.Index = FlatFaiss
@@ -20,12 +20,10 @@ class Partitioner:
         self.partitions = None
         self.schema =  None
         self.index_labels = []
-        self.schema_dict = {}
 
 
-    def init_schema(self, schema_dict):
-        self.schema_dict = schema_dict
-        self.schema = PartitionSchema(schema_dict)
+    def init_schema(self, encoders, filters, metric):
+        self.schema = PartitionSchema(encoders, filters, metric)
         self.partitions = [self.Index(self.schema.metric, self.schema.dim, **self.sim_params) for _ in self.schema.partitions]
         enc_sizes = {k:len(v) for k,v in self.schema.encoders.items()}
         return self.schema.partitions, enc_sizes
@@ -109,7 +107,7 @@ class Partitioner:
         with (self.model_dir/model_name/"index_labels.json").open('w') as f:
             json.dump(self.index_labels, f)
         with (self.model_dir/model_name/"schema.json").open('w') as f:
-            json.dump(self.schema_dict, f)
+            json.dump(self.schema.to_dict(), f)
         saved=0
         for i,p in enumerate(self.partitions):
             fname = str(self.model_dir/model_name/str(i))
@@ -123,8 +121,7 @@ class Partitioner:
     def load_model(self, model_name):
         with (self.model_dir/model_name/"schema.json").open('r') as f:
             schema_dict=json.load(f)
-        self.schema_dict = schema_dict
-        schema = PartitionSchema(schema_dict)
+        schema = PartitionSchema(*schema_dict)
         partitions = [self.Index(schema.metric, schema.dim, **self.sim_params) for _ in self.partitions]
         (self.model_dir/model_name).mkdir(parents=True, exist_ok=True)
         with (self.model_dir/model_name/"index_labels.json").open('r') as f:
