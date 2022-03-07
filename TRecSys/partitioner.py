@@ -103,7 +103,7 @@ class Partitioner:
         except Exception as e:
             raise Exception("Error in encoding: " + str(e))
         if type(partition_nums)!=list:
-            return self.query_by_partition_and_vector(partition_num, vec, k, explain)
+            return self.query_by_partition_and_vector(partition_nums, vec, k, explain)
         # Aggregate results if multiple partitions are returned:
         labels,distances,explanation = [], [], []
         for partition_num in partition_nums:
