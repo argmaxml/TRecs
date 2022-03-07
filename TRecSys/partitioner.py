@@ -43,7 +43,7 @@ class Partitioner:
             _, items, ids = zip(*grp)
             for id in ids:
                 if id in labels:
-                    errors.append((datum, f"{id} already indexed."))
+                    errors.append((datum, "{id} already indexed.".format(id=id)))
                     continue # skip labels that already exists
                 else:
                     labels.add(id)

@@ -55,7 +55,7 @@ class PartitionSchema:
     def encode(self, x, weights=None):
         if weights is None:
             return np.concatenate([e(x[f]) for f, e in self.encoders.items() if e.column_weight!=0])
-        assert len(weights)==len(self.encoders), f"Invalid number of weight vector {len(weights)}"
+        assert len(weights)==len(self.encoders), "Invalid number of weight vector {w}".format(w=len(weights))
         return np.concatenate([w*e.encode(x[f])/np.sqrt(e.nonzero_elements) for f, e, w in zip(self.encoders.keys(),self.encoders.values(), weights)])
     def partition_num(self, x):
         if not any(self.filters):
@@ -182,7 +182,7 @@ class OrdinalEncoder(OneHotEncoder):
         self.nonzero_elements=len(window)
 
     def encode(self, value):
-        assert len(self.window) % 2 == 1, f"Window size should be odd: window: {self.window}, value: {value}"
+        assert len(self.window) % 2 == 1, "Window size should be odd: window: {w}, value: {v}".format(w=self.window,v=value)
         vec = np.zeros(1 + len(self.values))
         try:
             ind = self.values.index(value)
