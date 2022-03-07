@@ -39,15 +39,18 @@ class Partitioner:
         vecs = sorted(vecs, key=at(0))
         affected_partitions = 0
         labels = set(self.index_labels)
-        for idx, grp in itertools.groupby(vecs, at(0)):
+        for partition_num, grp in itertools.groupby(vecs, at(0)):
             _, items, ids = zip(*grp)
             for id in ids:
-                if id not in labels:
+                if id in labels:
+                    errors.append((datum, f"{id} already indexed."))
+                    continue # skip labels that already exists
+                else:
                     labels.add(id)
                     self.index_labels.append(id)
             affected_partitions += 1
             num_ids = list(map(self.index_labels.index, ids))
-            self.partitions[idx].add_items(items, num_ids)
+            self.partitions[partition_num].add_items(items, num_ids)
         return errors, affected_partitions
 
     def query_by_partition_and_vector(self, partition_num, vec, k, explain=False):
