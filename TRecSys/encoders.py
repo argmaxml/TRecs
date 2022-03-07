@@ -52,8 +52,11 @@ class PartitionSchema:
                 raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
         self.encoders = encoder_dict
         self.dim = sum(map(len, filter(lambda e: e.column_weight!=0, encoder_dict.values())))
-    def encode(self, x):
-        return np.concatenate([e(x[f]) for f, e in self.encoders.items() if e.column_weight!=0])
+    def encode(self, x, weights=None):
+        if weights is None:
+            return np.concatenate([e(x[f]) for f, e in self.encoders.items() if e.column_weight!=0])
+        assert len(weights)==len(self.encoders), f"Invalid number of weight vector {len(weights)}"
+        return np.concatenate([w*e.encode(x[f])/np.sqrt(e.nonzero_elements) for f, e, w in zip(self.encoders.keys(),self.encoders.values(), weights)])
     def partition_num(self, x):
         if not any(self.filters):
             return 0
