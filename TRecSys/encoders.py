@@ -2,6 +2,7 @@ import json, re, itertools, collections, os
 from copy import deepcopy as clone
 from operator import itemgetter as at
 import numpy as np
+from torch import vstack
 from tree_helpers import lowest_depth, get_values_nested
 import requests
 from smart_open import open
@@ -53,10 +54,24 @@ class PartitionSchema:
         self.encoders = encoder_dict
         self.dim = sum(map(len, filter(lambda e: e.column_weight!=0, encoder_dict.values())))
     def encode(self, x, weights=None):
-        if weights is None:
-            return np.concatenate([e(x[f]) for f, e in self.encoders.items() if e.column_weight!=0])
-        assert len(weights)==len(self.encoders), "Invalid number of weight vector {w}".format(w=len(weights))
-        return np.concatenate([w*e.encode(x[f])/np.sqrt(e.nonzero_elements) for f, e, w in zip(self.encoders.keys(),self.encoders.values(), weights)])
+        if type(x)==list:
+            return np.vstack([self.encode(t,weights) for t in x])
+        elif type(x)==dict:
+            if weights is None:
+                return np.concatenate([e(x[f]) for f, e in self.encoders.items() if e.column_weight!=0])
+            assert len(weights)==len(self.encoders), "Invalid number of weight vector {w}".format(w=len(weights))
+            return np.concatenate([w*e.encode(x[f])/np.sqrt(e.nonzero_elements) for f, e, w in zip(self.encoders.keys(),self.encoders.values(), weights)])
+        else:
+            raise TypeError("Usupported type for encode {t}".format(t=type(x)))
+    def component_breakdown(self):
+        start=0
+        breakdown = {}
+        for col,enc in self.schema.encoders.items():
+            if enc.column_weight==0:
+                continue
+            end = start + len(enc)
+            breakdown[col] = (start, end)
+        return breakdown
     def partition_num(self, x):
         if not any(self.filters):
             return 0

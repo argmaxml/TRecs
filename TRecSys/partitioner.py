@@ -76,7 +76,7 @@ class Partitioner:
             explanation.append({})
             for col,enc in self.schema.encoders.items():
                 if enc.column_weight==0:
-                    explanation[-1][col] = float(enc.column_weight)
+                    explanation[-1][col] = 0#float(enc.column_weight)
                     continue
                 end = start + len(enc)
                 ret_part = ret_vec[start:end]
@@ -199,15 +199,25 @@ class Partitioner:
         return len(self.index_labels)
 
 class AvgUserPartitioner(Partitioner):
+    def __init__(self, config=None):
+        super().__init__(config)
+        self.post_aggregation_override = config.get("post_aggregation_override", {})
     def user_partition_mapping(self, user_metadata):
         # Assumes same features as the item
         return self.schema.partition_num(user_metadata)
 
     def user_query(self, user_metadata, user_histories, k):
         user_partition_num = self.user_partition_mapping(user_metadata)
+        col_mapping = self.schema.component_breakdown()
         labels,distances = [], []
         for user_history in user_histories:
+            # Calculate AVG
             vec = np.mean([v for vs in self.fetch(user_history, numpy=True).values() for v in vs], axis=0)
+            # Override column values post aggregation, if needed
+            for col, val in self.post_aggregation_override.items():
+                start, end = col_mapping[col]
+                vec[start:end] = val
+            # Query
             item_labels,item_distances,_ = self.query_by_partition_and_vector(user_partition_num, vec, k)
             labels.extend(item_labels)
             distances.extend(item_distances)
