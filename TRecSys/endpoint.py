@@ -33,6 +33,7 @@ class Column(BaseModel):
     field: str
     values: List[str]
     type: Optional[str]
+    default: Optional[str]
     weight: Optional[float]
     window: Optional[List[float]]
     url: Optional[str]
@@ -46,6 +47,7 @@ class Schema(BaseModel):
     encoders: List[Column]
     metric: Optional[str]='ip'
     filters: Optional[List[Column]]=[]
+    user_encoders: Optional[List[Column]]=[]
 
     def to_dict(self):
         return {
