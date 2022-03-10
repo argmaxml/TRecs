@@ -2,7 +2,6 @@ import json, re, itertools, collections, os
 from copy import deepcopy as clone
 from operator import itemgetter as at
 import numpy as np
-from torch import vstack
 from tree_helpers import lowest_depth, get_values_nested
 import requests
 from smart_open import open
