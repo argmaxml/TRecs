@@ -234,6 +234,7 @@ class BinEncoder(CachingEncoder):
         return len(self.values) + 1
 
     def encode(self, value):
+        value = float(value)
         vec = np.zeros(1 + len(self.values))
         i = 0
         while i < len(self.values) and value > self.values[i]:
@@ -249,6 +250,7 @@ class BinOrdinalEncoder(BinEncoder):
         self.nonzero_elements=len(window)
 
     def encode(self, value):
+        value = float(value)
         vec = np.zeros(1 + len(self.values))
         ind = 0
         while ind < len(self.values) and value > self.values[ind]:
