@@ -75,7 +75,7 @@ class PartitionSchema:
     def component_breakdown(self):
         start=0
         breakdown = {}
-        for col,enc in self.schema.encoders.items():
+        for col,enc in self.encoders.items():
             if enc.column_weight==0:
                 continue
             end = start + len(enc)
@@ -239,6 +239,7 @@ class BinEncoder(CachingEncoder):
         while i < len(self.values) and value > self.values[i]:
             i += 1
         vec[i] = 1
+        return vec
 
 
 class BinOrdinalEncoder(BinEncoder):
@@ -258,6 +259,7 @@ class BinOrdinalEncoder(BinEncoder):
                 vec[ind - offset] = self.window[len(self.window) // 2 - offset]
             if ind + offset < len(self.values):
                 vec[ind + offset] = self.window[len(self.window) // 2 + offset]
+        return vec
     
     def special_properties(self):
         return {"window": self.window}

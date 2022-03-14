@@ -198,10 +198,15 @@ class Partitioner:
     def get_total_items(self):
         return len(self.index_labels)
 
+
 class AvgUserPartitioner(Partitioner):
     def __init__(self, config=None):
         super().__init__(config)
-        self.post_aggregation_override = config.get("post_aggregation_override", {})
+        if not config:
+            self.post_aggregation_override = {}
+        else:
+            self.post_aggregation_override = config.get("post_aggregation_override", {})
+
     def user_partition_mapping(self, user_metadata):
         # Assumes same features as the item
         return self.schema.partition_num(user_metadata)
@@ -210,6 +215,8 @@ class AvgUserPartitioner(Partitioner):
         user_partition_num = self.user_partition_mapping(user_metadata)
         col_mapping = self.schema.component_breakdown()
         labels,distances = [], []
+        if type(user_histories) == str:
+            user_histories=[user_histories]
         for user_history in user_histories:
             # Calculate AVG
             vec = np.mean([v for vs in self.fetch(user_history, numpy=True).values() for v in vs], axis=0)
