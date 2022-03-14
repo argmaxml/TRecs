@@ -211,15 +211,16 @@ class AvgUserPartitioner(Partitioner):
         # Assumes same features as the item
         return self.schema.partition_num(user_metadata)
 
-    def user_query(self, user_metadata, user_histories, k):
+    def user_query(self, user_metadata, user_histories, k, user_bias_vector=None):
+        user_bias_vector = np.zeros(self.schema.dim)
         user_partition_num = self.user_partition_mapping(user_metadata)
         col_mapping = self.schema.component_breakdown()
         labels,distances = [], []
         if type(user_histories) == str:
-            user_histories=[user_histories]
+            user_histories = [user_histories]
         for user_history in user_histories:
             # Calculate AVG
-            vec = np.mean([v for vs in self.fetch(user_history, numpy=True).values() for v in vs], axis=0)
+            vec = np.mean([user_bias_vector]+[v for vs in self.fetch(user_history, numpy=True).values() for v in vs], axis=0)
             # Override column values post aggregation, if needed
             for col, val in self.post_aggregation_override.items():
                 start, end = col_mapping[col]
@@ -228,5 +229,5 @@ class AvgUserPartitioner(Partitioner):
             item_labels,item_distances,_ = self.query_by_partition_and_vector(user_partition_num, vec, k)
             labels.extend(item_labels)
             distances.extend(item_distances)
-        return labels,distances
+        return labels, distances
 
