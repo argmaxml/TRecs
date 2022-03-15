@@ -123,7 +123,7 @@ class BaseEncoder:
         raise NotImplementedError("len is not implemented")
 
     def __call__(self, value):
-        return self.column_weight * self.encode(value) * np.ones(len(self)) * (1/np.sqrt(self.nonzero_elements))
+        return self.column_weight * float(self.encode(value)) * np.ones(len(self)) * (1/np.sqrt(self.nonzero_elements))
 
     def encode(self, value):
         raise NotImplementedError("encode is not implemented")
