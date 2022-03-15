@@ -174,7 +174,7 @@ class NumericEncoder(BaseEncoder):
     def __len__(self):
         return 1
     def encode(self, value):
-        return np.array([value])
+        return np.array([float(value)])
 
 class OneHotEncoder(CachingEncoder):
 
