@@ -17,7 +17,7 @@
         {"field": "age", "values":["1","2"], "type": "onehot", "weight":1},
         {"field": "sex", "values":["m","f"], "type": "onehot", "weight":1}
     ],
-    "metric": "cosine"
+    "metric": "l2"
 }
 ```
 
