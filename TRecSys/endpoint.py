@@ -46,7 +46,8 @@ class Schema(BaseModel):
     metric: Optional[str]='ip'
     filters: Optional[List[Column]]=[]
     user_encoders: Optional[List[Column]]=[]
-
+    id_col: Optional[str]='id'
+    
     def to_dict(self):
         return {
             "metric": self.metric,
