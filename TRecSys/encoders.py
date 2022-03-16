@@ -8,11 +8,12 @@ from smart_open import open
 
 class PartitionSchema:
     __slots__=["encoders", "filters", "partitions", "dim", "metric", "defaults", "id_col"]
-    def __init__(self, encoders, filters=[], metric='ip', id_col="id"):
+    def __init__(self, encoders, filters=[], metric='ip', id_col="id", user_encoders=[]):
         self.metric = metric
         self.id_col = id_col
         self.filters, self.partitions = self._parse_filters(filters)
         self.encoders = self._parse_encoders(encoders)
+        self.user_encoders = self._parse_encoders(user_encoders)
         self.defaults = {}
         for f, e in self.encoders.items():
             if e.default is not None:
@@ -63,6 +64,15 @@ class PartitionSchema:
             partitions = list(itertools.product(*[f["values"] for f in filters]))
             ret_filters = [f["field"] for f in filters]
         return ret_filters, partitions
+    def _unparse_encoders(self, encoders):
+        return [dict({"field":k, "values": e.values, "type": type(e).__name__.replace("Encoder", "").lower(), "weight": e.column_weight, "default": e.default}, **e.special_properties()) for k, e in encoders.items()]
+    def _unparse_filters(self, filters, partitions):
+        ret_filters = collections.defaultdict(set)
+        for i, k in enumerate(filters):
+            for v in map(at(i), partitions):
+                ret_filters[k].add(v)
+        ret_filters = [{"field":k, "values": list(v)} for k,v in ret_filters.items()]
+        return ret_filters
     def encode(self, x, weights=None):
         if type(x)==list:
             return np.vstack([self.encode(t,weights) for t in x])
@@ -106,13 +116,10 @@ class PartitionSchema:
             ret.append(self.partitions.index(combined_key))
         return ret
     def to_dict(self):
-        filters = collections.defaultdict(set)
-        for i, k in enumerate(self.filters):
-            for v in map(at(i), self.partitions):
-                filters[k].add(v)
-        filters = [{"field":k, "values": list(v)} for k,v in filters.items()]
-        encoders = [dict({"field":k, "values": e.values, "type": type(e).__name__.replace("Encoder", "").lower(), "weight": e.column_weight}, **e.special_properties()) for k, e in self.encoders.items()]
-        return {"encoders": encoders, "filters":filters, "metric": self.metric}
+        filters = self._unparse_filters(self.filters, self.partitions)
+        encoders = self._unparse_encoders(self.encoders)
+        user_encoders = self._unparse_encoders(self.user_encoders)
+        return {"encoders": encoders, "filters":filters, "metric": self.metric, "id_col": self.id_col, "user_encoders": user_encoders}
 
 
 class BaseEncoder:

@@ -19,7 +19,7 @@ except:
     def free_memory():
         gc.collect()
 sys.path.append("../src")
-from TRecSys.strategies import BaseStrategy
+from TRecSys.strategies import AvgUserStrategy
 import pandas as pd
 
 strategy = None
@@ -60,10 +60,15 @@ class KnnQuery(BaseModel):
     k: int
     explain:Optional[bool]=False
 
+class KnnUserQuery(BaseModel):
+    item_history: List[str]
+    data: Optional[Dict[str, Union[List[str],str]]]={}
+    k: int
+
 
 @api.get("/")
 async def read_root():
-    return {"status": "OK", "schema_initialized": strategy.schema_initialized()}
+    return {"status": "OK", "schema_initialized": strategy.schema_initialized(), "total_items": strategy.get_total_items()}
 
 
 @api.get("/partitions")
@@ -133,6 +138,18 @@ async def api_query(query: KnnQuery):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+@api.post("/user_query")
+async def api_user_query(query: KnnUserQuery):
+    if not strategy.schema_initialized():
+        return {"status": "error", "message": "Schema not initialized"}
+    if strategy.get_total_items()==0:
+        return {"status": "error", "message": "No items are indexed"}
+    try:
+        labels,distances =strategy.user_query(query.data, query.item_history, query.k)
+        return {"status": "OK", "ids": labels, "distances": distances}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
 @api.post("/save_model")
 async def api_save(model_name:str):
@@ -153,7 +170,7 @@ async def api_list():
 
 def run_server(config=None, host="0.0.0.0", port=5000, log_level="info"):
     global strategy
-    strategy = BaseStrategy(config)
+    strategy = AvgUserStrategy(config)
     uvicorn.run(api, host=host, port=port, log_level=log_level)
 
 if __name__ == "__main__":
@@ -166,5 +183,5 @@ if __name__ == "__main__":
     data_dir = Path(__file__).absolute().parent.parent / "data"
     with (data_dir / "config.json").open('r') as f:
         config = json.load(f)
-    strategy = BaseStrategy(config)
+    strategy = AvgUserStrategy(config)
     uvicorn.run("__main__:api", host=args.host, port=args.port, log_level="info")
