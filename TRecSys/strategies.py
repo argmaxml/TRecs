@@ -5,13 +5,13 @@ from pathlib import Path
 src = Path(__file__).absolute().parent
 sys.path.append(str(src))
 from encoders import PartitionSchema
-from similarity_helpers import parse_server_name, FlatFaiss
+from similarity_helpers import parse_server_name, LazyHnsw
 
 class BaseStrategy:
     __slots__ = ["schema", "partitions","index_labels", "model_dir", "IndexEngine", "engine_params"]
     def __init__(self, config=None):
         if config is None:
-            self.IndexEngine = FlatFaiss
+            self.IndexEngine = LazyHnsw
             self.engine_params = {}
         else:
             self.engine_params=config[config["similarity_engine"]]
@@ -200,31 +200,27 @@ class BaseStrategy:
 
 
 class AvgUserStrategy(BaseStrategy):
-    def __init__(self, config=None):
-        super().__init__(config)
-        if not config:
-            self.post_aggregation_override = {}
-        else:
-            self.post_aggregation_override = config.get("post_aggregation_override", {})
-
-    def user_partition_mapping(self, user_metadata):
+    def user_partition_num(self, user_data):
         # Assumes same features as the item
-        return self.schema.partition_num(user_metadata)
+        return self.schema.partition_num(user_data)
 
-    def user_query(self, user_metadata, user_histories, k, user_bias_vector=None):
-        user_bias_vector = np.zeros(self.schema.dim)
-        user_partition_num = self.user_partition_mapping(user_metadata)
+    def user_query(self, user_data, item_history, k, user_coldstart_item=None):
+        if user_coldstart_item is None:
+            user_coldstart_item = np.zeros(self.schema.dim)
+        else:
+            user_coldstart_item = self.schema.encode(user_coldstart_item)
+        user_partition_num = self.user_partition_num(user_data)
         col_mapping = self.schema.component_breakdown()
         labels,distances = [], []
-        if type(user_histories) == str:
-            user_histories = [user_histories]
-        for user_history in user_histories:
+        if type(item_history) == str:
+            item_history = [item_history]
+        for item in item_history:
             # Calculate AVG
-            vec = np.mean([user_bias_vector]+[v for vs in self.fetch(user_history, numpy=True).values() for v in vs], axis=0)
+            vec = np.mean([user_coldstart_item]+[v for vs in self.fetch(item, numpy=True).values() for v in vs], axis=0)
             # Override column values post aggregation, if needed
-            for col, val in self.post_aggregation_override.items():
+            for col, enc in self.schema.user_encoders.items():
                 start, end = col_mapping[col]
-                vec[start:end] = val
+                vec[start:end] = enc(user_data)
             # Query
             item_labels,item_distances,_ = self.query_by_partition_and_vector(user_partition_num, vec, k)
             labels.extend(item_labels)
