@@ -7,15 +7,18 @@ import requests
 from smart_open import open
 
 class PartitionSchema:
-    __slots__=["encoders", "filters", "partitions", "dim", "metric", "defaults"]
-    def __init__(self, encoders, filters=[], metric='ip'):
+    __slots__=["encoders", "filters", "partitions", "dim", "metric", "defaults", "id_col"]
+    def __init__(self, encoders, filters=[], metric='ip', id_col="id"):
         self.metric = metric
-        if any(filters):
-            self.filters = [f["field"] for f in filters]
-            self.partitions = list(itertools.product(*[f["values"] for f in filters]))
-        else:
-            self.filters = []
-            self.partitions = [("ALL",)]
+        self.id_col = id_col
+        self.filters, self.partitions = self._parse_filters(filters)
+        self.encoders = self._parse_encoders(encoders)
+        self.defaults = {}
+        for f, e in self.encoders.items():
+            if e.default is not None:
+                self.defaults[f] = e.default
+        self.dim = sum(map(len, filter(lambda e: e.column_weight!=0, self.encoders.values())))
+    def _parse_encoders(self, encoders):
         encoder_dict = dict()
         for enc in encoders:
             if enc["type"] in ["onehot", "one_hot", "one hot", "oh"]:
@@ -52,12 +55,14 @@ class PartitionSchema:
                                                             feature_name=enc["feature"], environment=enc["environment"])
             else:
                 raise TypeError("Unknown type {t} in field {f}".format(f=enc["field"], t=enc["type"]))
-        self.encoders = encoder_dict
-        self.defaults = {}
-        for f, e in self.encoders.items():
-            if e.default is not None:
-                self.defaults[f] = e.default
-        self.dim = sum(map(len, filter(lambda e: e.column_weight!=0, encoder_dict.values())))
+        return encoder_dict
+    def _parse_filters(self, filters):
+        ret_filters = []
+        partitions = [("ALL",)]
+        if any(filters):
+            partitions = list(itertools.product(*[f["values"] for f in filters]))
+            ret_filters = [f["field"] for f in filters]
+        return ret_filters, partitions
     def encode(self, x, weights=None):
         if type(x)==list:
             return np.vstack([self.encode(t,weights) for t in x])

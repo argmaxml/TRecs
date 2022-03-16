@@ -1,3 +1,4 @@
+import uvicorn
 from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 import sys, json
@@ -18,13 +19,13 @@ except:
     def free_memory():
         gc.collect()
 sys.path.append("../src")
-from partitioner import Partitioner
+from TRecSys.strategies import BaseStrategy
 import pandas as pd
 
 data_dir = Path(__file__).absolute().parent.parent / "data"
 with (data_dir / "config.json").open('r') as f:
     config = json.load(f)
-partitioner = Partitioner(config)
+strategy = BaseStrategy(config)
 api = FastAPI()
 
 
@@ -65,57 +66,57 @@ class KnnQuery(BaseModel):
 
 @api.get("/")
 async def read_root():
-    return {"status": "OK", "schema_initialized": partitioner.schema_initialized()}
+    return {"status": "OK", "schema_initialized": strategy.schema_initialized()}
 
 
 @api.get("/partitions")
 async def api_partitions():
-    if not partitioner.schema_initialized():
+    if not strategy.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
-    ret = partitioner.get_partition_stats()
+    ret = strategy.get_partition_stats()
     ret["status"] = "OK"
     return ret
 
 
 @api.post("/fetch")
 def api_fetch(lbls: List[str]):
-    if not partitioner.schema_initialized():
+    if not strategy.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
-    if partitioner.get_total_items()==0:
+    if strategy.get_total_items()==0:
         return {"status": "error", "message": "No items are indexed"}
-    return partitioner.fetch(lbls)
+    return strategy.fetch(lbls)
 
 @api.post("/encode")
 async def api_encode(data: Dict[str, str]):
-    if not partitioner.schema_initialized():
+    if not strategy.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
-    vec = partitioner.encode(data)
+    vec = strategy.encode(data)
     return {"status": "OK", "vec": [float(x) for x in vec]}
 
 
 @api.post("/init_schema")
 def init_schema(sr: Schema):
     schema_dict = sr.to_dict()
-    partitions, enc_sizes = partitioner.init_schema(**schema_dict)
+    partitions, enc_sizes = strategy.init_schema(**schema_dict)
     free_memory()
-    return {"status": "OK", "partitions": len(partitions), "vector_size":partitioner.get_embedding_dimension(), "feature_sizes":enc_sizes, "total_items":partitioner.get_total_items()}
+    return {"status": "OK", "partitions": len(partitions), "vector_size":strategy.get_embedding_dimension(), "feature_sizes":enc_sizes, "total_items":strategy.get_total_items()}
 
 @api.post("/get_schema")
 def get_schema():
-    if not partitioner.schema_initialized():
+    if not strategy.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
     else:
-        return partitioner.schema.to_dict()
+        return strategy.schema.to_dict()
 
 @api.post("/index")
 async def api_index(data: Union[List[Dict[str, str]], str]):
-    if not partitioner.schema_initialized():
+    if not strategy.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
     if type(data)==str:
         # read data remotely
         with open(data, 'r') as f:
             data = json.load(f)
-    errors, affected_partitions = partitioner.index(data)
+    errors, affected_partitions = strategy.index(data)
     if any(errors):
         return {"status": "error", "items": errors}
     return {"status": "OK", "affected_partitions": affected_partitions}
@@ -123,12 +124,12 @@ async def api_index(data: Union[List[Dict[str, str]], str]):
 
 @api.post("/query")
 async def api_query(query: KnnQuery):
-    if not partitioner.schema_initialized():
+    if not strategy.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
-    if partitioner.get_total_items()==0:
+    if strategy.get_total_items()==0:
         return {"status": "error", "message": "No items are indexed"}
     try:
-        labels,distances, explanation =partitioner.query(query.data, query.k, query.explain)
+        labels,distances, explanation =strategy.query(query.data, query.k, query.explain)
         if any(explanation):
             return {"status": "OK", "ids": labels, "distances": distances, "explanation":explanation}
         return {"status": "OK", "ids": labels, "distances": distances}
@@ -138,23 +139,25 @@ async def api_query(query: KnnQuery):
 
 @api.post("/save_model")
 async def api_save(model_name:str):
-    if not partitioner.schema_initialized():
+    if not strategy.schema_initialized():
         return {"status": "error", "message": "Schema not initialized"}
-    saved = partitioner.save_model(model_name)
+    saved = strategy.save_model(model_name)
     return {"status": "OK", "saved_indices": saved}
 
 @api.post("/load_model")
 async def api_load(model_name:str):
-    loaded = partitioner.load_model(model_name)
+    loaded = strategy.load_model(model_name)
     free_memory()
     return {"status": "OK", "loaded_indices": loaded}
 
 @api.post("/list_models")
 async def api_list():
-    return partitioner.list_models()
+    return strategy.list_models()
+
+def run_server(host="0.0.0.0", port=5000, log_level="info"):
+    uvicorn.run(api, host=host, port=port, log_level=log_level)
 
 if __name__ == "__main__":
-    import uvicorn
     from argparse import ArgumentParser
     argparse = ArgumentParser()
     argparse.add_argument('--host', default='0.0.0.0', type=str, help='host')

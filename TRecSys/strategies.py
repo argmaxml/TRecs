@@ -7,7 +7,7 @@ sys.path.append(str(src))
 from encoders import PartitionSchema
 from similarity_helpers import parse_server_name, FlatFaiss
 
-class Partitioner:
+class BaseStrategy:
     __slots__ = ["schema", "partitions","index_labels", "model_dir", "IndexEngine", "engine_params"]
     def __init__(self, config=None):
         if config is None:
@@ -22,8 +22,8 @@ class Partitioner:
         self.index_labels = []
 
 
-    def init_schema(self, encoders, filters, metric):
-        self.schema = PartitionSchema(encoders, filters, metric)
+    def init_schema(self, encoders, filters, metric, id_col="id"):
+        self.schema = PartitionSchema(encoders, filters, metric, id_col)
         self.partitions = [self.IndexEngine(self.schema.metric, self.schema.dim, **self.engine_params) for _ in self.schema.partitions]
         enc_sizes = {k:len(v) for k,v in self.schema.encoders.items()}
         return self.schema.partitions, enc_sizes
@@ -33,7 +33,7 @@ class Partitioner:
         vecs = []
         for datum in data:
             try:
-                vecs.append((self.schema.partition_num(datum), self.schema.encode(datum), datum["id"]))
+                vecs.append((self.schema.partition_num(datum), self.schema.encode(datum), datum[self.schema.id_col]))
             except KeyError as e:
                 errors.append((datum, str(e)))
         vecs = sorted(vecs, key=at(0))
@@ -199,7 +199,7 @@ class Partitioner:
         return len(self.index_labels)
 
 
-class AvgUserPartitioner(Partitioner):
+class AvgUserStrategy(BaseStrategy):
     def __init__(self, config=None):
         super().__init__(config)
         if not config:
