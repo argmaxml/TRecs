@@ -22,8 +22,8 @@ class BaseStrategy:
         self.index_labels = []
 
 
-    def init_schema(self, encoders, filters, metric, id_col="id"):
-        self.schema = PartitionSchema(encoders, filters, metric, id_col)
+    def init_schema(self, **kwargs):
+        self.schema = PartitionSchema(**kwargs)
         self.partitions = [self.IndexEngine(self.schema.metric, self.schema.dim, **self.engine_params) for _ in self.schema.partitions]
         enc_sizes = {k:len(v) for k,v in self.schema.encoders.items()}
         return self.schema.partitions, enc_sizes
@@ -206,9 +206,11 @@ class AvgUserStrategy(BaseStrategy):
 
     def user_query(self, user_data, item_history, k, user_coldstart_item=None):
         if user_coldstart_item is None:
-            user_coldstart_item = np.zeros(self.schema.dim)
+            n = 0
+            vec = np.zeros(self.schema.dim)
         else:
-            user_coldstart_item = self.schema.encode(user_coldstart_item)
+            n = 1
+            vec = self.schema.encode(user_coldstart_item)
         user_partition_num = self.user_partition_num(user_data)
         col_mapping = self.schema.component_breakdown()
         labels,distances = [], []
@@ -216,14 +218,18 @@ class AvgUserStrategy(BaseStrategy):
             item_history = [item_history]
         for item in item_history:
             # Calculate AVG
-            vec = np.mean([user_coldstart_item]+[v for vs in self.fetch(item, numpy=True).values() for v in vs], axis=0)
-            # Override column values post aggregation, if needed
-            for col, enc in self.schema.user_encoders.items():
-                start, end = col_mapping[col]
-                vec[start:end] = enc(user_data)
-            # Query
-            item_labels,item_distances,_ = self.query_by_partition_and_vector(user_partition_num, vec, k)
-            labels.extend(item_labels)
-            distances.extend(item_distances)
+            item_vectors = [v for vs in self.fetch(item, numpy=True).values() for v in vs]
+            n+=len(item_vectors)
+            vec += np.sum(item_vectors, axis=0)
+        if n>0:
+            vec /= n
+        # Override column values post aggregation, if needed
+        for col, enc in self.schema.user_encoders.items():
+            start, end = col_mapping[col]
+            vec[start:end] = enc(user_data)
+        # Query
+        item_labels,item_distances,_ = self.query_by_partition_and_vector(user_partition_num, vec, k)
+        labels.extend(item_labels)
+        distances.extend(item_distances)
         return labels, distances
 
