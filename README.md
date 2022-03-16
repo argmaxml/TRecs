@@ -1,4 +1,11 @@
 # TRecs - Tabular Similarity Search Server
+
+## Setting up a server
+```
+pip install TRecSys
+python -m TRecSys
+```
+
 ## API
 
   1. `/init_schema` - Specify filters, encoders and user encoders for the similarity engines.
