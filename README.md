@@ -1,8 +1,9 @@
 # TRecs - Tabular Similarity Search Server
 ## API
 
-   1. `/index` - gets a list of dicts
-   1. `/query` - gets a single item and returns nearest neighbors
+  1. `/init_schema` - Specify filters, encoders and user encoders for the similarity engines.
+   1. `/index` - Index a list of items, each item should be a `dict` mapping an item feature to its value.
+   1. `/query` - Gets a single item and returns its k nearest neighbors.
    1. `/save`  - saves model to disk
    1. `/load`  - loads model from disk
 
@@ -14,8 +15,8 @@
         {"field": "country", "values": ["US", "EU"]}
     ],
     "encoders": [
-        {"field": "age", "values":["1","2"], "type": "onehot", "weight":1},
-        {"field": "sex", "values":["m","f"], "type": "onehot", "weight":1}
+        {"field": "price", "values":["low", "mid", "high"], "type": "onehot", "weight":1},
+        {"field": "category", "values":["dairy","meat"], "type": "onehot", "weight":2}
     ],
     "metric": "l2"
 }
@@ -27,38 +28,48 @@
 [
   {
     "id": "1",
-    "age": "1",
-    "sex": "f",
+    "price": "low",
+    "category": "meat",
     "country":"US"
   },
   {
     "id": "2",
-    "age": "2",
-    "sex": "f",
+    "price": "mid",
+    "category": "meat",
     "country":"US"
   },
   {
     "id": "3",
-    "age": "1",
-    "sex": "m",
+    "price": "low",
+    "category": "dairy",
     "country":"US"
   },
   {
     "id": "4",
-    "age": "1",
-    "sex": "f",
+    "price": "high",
+    "category": "meat",
     "country":"EU"
   }
 ]
 ```
-## Query
+## Item Query
 ```
 {
   "k": 2,
   "data": {
-    "id": "2",
-    "age": "2",
-    "sex": "f",
+    "price": "low",
+    "category": "meat",
+    "country":"US"
+  }
+}
+```
+
+## User Query
+```
+{
+  "k": 2,
+  "item_history":["1","3","3"],
+  "data": {
     "country":"US"
   }
 }
