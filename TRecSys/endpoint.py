@@ -22,10 +22,7 @@ sys.path.append("../src")
 from TRecSys.strategies import BaseStrategy
 import pandas as pd
 
-data_dir = Path(__file__).absolute().parent.parent / "data"
-with (data_dir / "config.json").open('r') as f:
-    config = json.load(f)
-strategy = BaseStrategy(config)
+strategy = None
 api = FastAPI()
 
 
@@ -154,7 +151,9 @@ async def api_load(model_name:str):
 async def api_list():
     return strategy.list_models()
 
-def run_server(host="0.0.0.0", port=5000, log_level="info"):
+def run_server(config=None, host="0.0.0.0", port=5000, log_level="info"):
+    global strategy
+    strategy = BaseStrategy(config)
     uvicorn.run(api, host=host, port=port, log_level=log_level)
 
 if __name__ == "__main__":
@@ -163,4 +162,9 @@ if __name__ == "__main__":
     argparse.add_argument('--host', default='0.0.0.0', type=str, help='host')
     argparse.add_argument('--port', default=5000, type=int, help='port')
     args = argparse.parse_args()
+    
+    data_dir = Path(__file__).absolute().parent.parent / "data"
+    with (data_dir / "config.json").open('r') as f:
+        config = json.load(f)
+    strategy = BaseStrategy(config)
     uvicorn.run("__main__:api", host=args.host, port=args.port, log_level="info")
