@@ -1,6 +1,6 @@
 from distutils.core import setup
 
-__version__="0.1.32"
+__version__="0.2.1"
 setup(
     name="TRecSys",
     packages=["TRecSys"],

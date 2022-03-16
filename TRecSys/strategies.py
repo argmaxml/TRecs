@@ -7,7 +7,7 @@ sys.path.append(str(src))
 from encoders import PartitionSchema
 from similarity_helpers import parse_server_name, FlatFaiss
 
-class Partitioner:
+class BaseStrategy:
     __slots__ = ["schema", "partitions","index_labels", "model_dir", "IndexEngine", "engine_params"]
     def __init__(self, config=None):
         if config is None:
@@ -22,8 +22,8 @@ class Partitioner:
         self.index_labels = []
 
 
-    def init_schema(self, encoders, filters, metric):
-        self.schema = PartitionSchema(encoders, filters, metric)
+    def init_schema(self, encoders, filters, metric, id_col="id"):
+        self.schema = PartitionSchema(encoders, filters, metric, id_col)
         self.partitions = [self.IndexEngine(self.schema.metric, self.schema.dim, **self.engine_params) for _ in self.schema.partitions]
         enc_sizes = {k:len(v) for k,v in self.schema.encoders.items()}
         return self.schema.partitions, enc_sizes
@@ -33,7 +33,7 @@ class Partitioner:
         vecs = []
         for datum in data:
             try:
-                vecs.append((self.schema.partition_num(datum), self.schema.encode(datum), datum["id"]))
+                vecs.append((self.schema.partition_num(datum), self.schema.encode(datum), datum[self.schema.id_col]))
             except KeyError as e:
                 errors.append((datum, str(e)))
         vecs = sorted(vecs, key=at(0))
@@ -43,7 +43,7 @@ class Partitioner:
             _, items, ids = zip(*grp)
             for id in ids:
                 if id in labels:
-                    errors.append((datum, f"{id} already indexed."))
+                    errors.append((datum, "{id} already indexed.".format(id=id)))
                     continue # skip labels that already exists
                 else:
                     labels.add(id)
@@ -76,7 +76,7 @@ class Partitioner:
             explanation.append({})
             for col,enc in self.schema.encoders.items():
                 if enc.column_weight==0:
-                    explanation[-1][col] = float(enc.column_weight)
+                    explanation[-1][col] = 0#float(enc.column_weight)
                     continue
                 end = start + len(enc)
                 ret_part = ret_vec[start:end]
@@ -198,18 +198,36 @@ class Partitioner:
     def get_total_items(self):
         return len(self.index_labels)
 
-class AvgUserPartitioner(Partitioner):
+
+class AvgUserStrategy(BaseStrategy):
+    def __init__(self, config=None):
+        super().__init__(config)
+        if not config:
+            self.post_aggregation_override = {}
+        else:
+            self.post_aggregation_override = config.get("post_aggregation_override", {})
+
     def user_partition_mapping(self, user_metadata):
         # Assumes same features as the item
         return self.schema.partition_num(user_metadata)
 
-    def user_query(self, user_metadata, user_histories, k):
+    def user_query(self, user_metadata, user_histories, k, user_bias_vector=None):
+        user_bias_vector = np.zeros(self.schema.dim)
         user_partition_num = self.user_partition_mapping(user_metadata)
+        col_mapping = self.schema.component_breakdown()
         labels,distances = [], []
+        if type(user_histories) == str:
+            user_histories = [user_histories]
         for user_history in user_histories:
-            vec = np.mean([v for vs in self.fetch(user_history, numpy=True).values() for v in vs], axis=0)
+            # Calculate AVG
+            vec = np.mean([user_bias_vector]+[v for vs in self.fetch(user_history, numpy=True).values() for v in vs], axis=0)
+            # Override column values post aggregation, if needed
+            for col, val in self.post_aggregation_override.items():
+                start, end = col_mapping[col]
+                vec[start:end] = val
+            # Query
             item_labels,item_distances,_ = self.query_by_partition_and_vector(user_partition_num, vec, k)
             labels.extend(item_labels)
             distances.extend(item_distances)
-        return labels,distances
+        return labels, distances
 
