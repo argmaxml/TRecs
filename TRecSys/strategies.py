@@ -12,7 +12,7 @@ class BaseStrategy:
     def __init__(self, model_dir=None, similarity_engine=None ,engine_params={}):
         if similarity_engine is None:
             self.IndexEngine = LazyHnsw
-            self.engine_params = {"max_elements":10240,"ef_construction": 200, "M": 16}
+            self.engine_params = {"max_elements":10240,"ef_construction": 2000, "M": 16}
         else:
             self.IndexEngine = parse_server_name(similarity_engine)
             self.engine_params = engine_params
@@ -141,13 +141,13 @@ class BaseStrategy:
     def load_model(self, model_name):
         with (self.model_dir/model_name/"schema.json").open('r') as f:
             schema_dict=json.load(f)
-        schema = PartitionSchema(**schema_dict)
-        partitions = [self.IndexEngine(schema.metric, schema.dim, **self.engine_params) for _ in schema.partitions]
+        self.schema = PartitionSchema(**schema_dict)
+        self.partitions = [self.IndexEngine(self.schema.metric, self.schema.dim, **self.engine_params) for _ in self.schema.partitions]
         (self.model_dir/model_name).mkdir(parents=True, exist_ok=True)
         with (self.model_dir/model_name/"index_labels.json").open('r') as f:
             self.index_labels=json.load(f)
         loaded = 0
-        for i,p in enumerate(partitions):
+        for i,p in enumerate(self.partitions):
             fname = str(self.model_dir/model_name/str(i))
             try:
                 p.load_index(fname)

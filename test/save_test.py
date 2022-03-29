@@ -5,9 +5,11 @@ from TRecSys import AvgUserStrategy
 
 class SaveLoad(unittest.TestCase):
     def setUp(self):
-        self.strategy = AvgUserStrategy()
+        self.saved_strategy = AvgUserStrategy()
+        self.loaded_strategy = AvgUserStrategy()
 
-        self.strategy.init_schema(
+
+        self.saved_strategy.init_schema(
         filters= [
             {"field": "country", "values": ["US", "EU"]}
         ],
@@ -17,7 +19,7 @@ class SaveLoad(unittest.TestCase):
         ],
         metric= "l2"
         )
-        self.strategy.index([
+        self.saved_strategy.index([
         {
             "id": "1",
             "price": "low",
@@ -43,18 +45,27 @@ class SaveLoad(unittest.TestCase):
             "country":"EU"
         }
         ])
-        self.strategy.save_model("t1")
+        self.saved_strategy.save_model("t1")
 
     def test_load(self):
-        self.strategy.load_model("t1")
-        print(self.strategy.query(
+        self.loaded_strategy.load_model("t1")
+        expected = self.saved_strategy.query(
             k= 2,
             data= {
                 "price": "low",
                 "category": "meat",
                 "country":"US"
             }
-        ))
+        )
+        actual = self.loaded_strategy.query(
+            k= 2,
+            data= {
+                "price": "low",
+                "category": "meat",
+                "country":"US"
+            }
+        )
+        self.assertEqual(expected, actual)
 
 
 
