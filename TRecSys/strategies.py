@@ -9,14 +9,17 @@ from similarity_helpers import parse_server_name, LazyHnsw
 
 class BaseStrategy:
     __slots__ = ["schema", "partitions","index_labels", "model_dir", "IndexEngine", "engine_params"]
-    def __init__(self, config=None):
-        if config is None:
+    def __init__(self, model_dir=None, similarity_engine=None ,engine_params={}):
+        if similarity_engine is None:
             self.IndexEngine = LazyHnsw
-            self.engine_params = {}
+            self.engine_params = {"max_elements":10240,"ef_construction": 200, "M": 16}
         else:
-            self.engine_params=config[config["similarity_engine"]]
-            self.IndexEngine = parse_server_name(config["similarity_engine"])
-        self.model_dir = Path(__file__).absolute().parent.parent / "models"
+            self.IndexEngine = parse_server_name(similarity_engine)
+            self.engine_params = engine_params
+        if model_dir:
+            self.model_dir = Path(model_dir)
+        else:
+            self.model_dir = Path(__file__).absolute().parent.parent / "models"
         self.partitions = None
         self.schema =  None
         self.index_labels = []
@@ -133,12 +136,12 @@ class BaseStrategy:
                 saved+=1
             except:
                 continue
-        return {"status": "OK", "saved_indices": saved}
+        return {"status": "OK", "saved_indices": saved, "path": str(self.model_dir/model_name)}
 
     def load_model(self, model_name):
         with (self.model_dir/model_name/"schema.json").open('r') as f:
             schema_dict=json.load(f)
-        schema = PartitionSchema(*schema_dict)
+        schema = PartitionSchema(**schema_dict)
         partitions = [self.IndexEngine(schema.metric, schema.dim, **self.engine_params) for _ in self.partitions]
         (self.model_dir/model_name).mkdir(parents=True, exist_ok=True)
         with (self.model_dir/model_name/"index_labels.json").open('r') as f:
