@@ -228,8 +228,10 @@ class AvgUserStrategy(BaseStrategy):
             vec /= n
         # Override column values post aggregation, if needed
         for col, enc in self.schema.user_encoders.items():
+            if col not in user_data:
+                continue
             start, end = col_mapping[col]
-            vec[start:end] = enc(user_data)
+            vec[start:end] = enc(user_data[col])
         # Query
         item_labels,item_distances,_ = self.query_by_partition_and_vector(user_partition_num, vec, k)
         labels.extend(item_labels)
