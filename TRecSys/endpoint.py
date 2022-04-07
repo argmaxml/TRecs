@@ -1,4 +1,3 @@
-import uvicorn
 from typing import Optional, List, Dict, Any, Union
 from pydantic import BaseModel, Field
 import sys, json
@@ -7,6 +6,10 @@ from pathlib import Path
 import gc
 try:
     from smart_open import open
+except:
+    pass
+try:
+    import uvicorn
 except:
     pass
 try:

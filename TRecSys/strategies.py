@@ -2,9 +2,12 @@ import json, itertools, collections, sys
 from operator import itemgetter as at
 import numpy as np
 from pathlib import Path
+
+from torchaudio import list_audio_backends
 src = Path(__file__).absolute().parent
 sys.path.append(str(src))
 from encoders import PartitionSchema
+from joblib import delayed, Parallel
 from similarity_helpers import parse_server_name, LazyHnsw
 
 class BaseStrategy:
@@ -55,6 +58,30 @@ class BaseStrategy:
             num_ids = list(map(self.index_labels.index, ids))
             self.partitions[partition_num].add_items(items, num_ids)
         return errors, affected_partitions
+
+    def index_dataframe(self, df):
+        partitioned = df.groupby(self.schema.filters).apply(lambda ds: ds.to_dict(orient='records'))
+        encoded = dict()
+        num_ids = dict()
+        partition_nums = dict()
+        num_id_start = len(self.index_labels)
+        self.index_labels
+        # Cannot be parallelized because index_labels should be consequently updated
+        for partition, data in partitioned.items():
+            partition_nums[partition] = self.schema.partition_num(data[0])
+            encoded[partition] = self.encode(data)
+            num_ids[partition] =(num_id_start, num_id_start+len(data))
+            self.index_labels.extend([datum[self.schema.id_col] for datum in data])
+            num_id_start+=len(data)
+        # Can be parallelized
+        for partition, data in encoded.items():
+            partition_num = partition_nums[partition]
+            from_, to_ = num_ids[partition]
+            ids = list(range(from_, to_))
+            self.partitions[partition_num].add_items(data, ids)
+        affected_partitions = len(encoded)
+        return affected_partitions
+
 
     def query_by_partition_and_vector(self, partition_num, vec, k, explain=False):
         try:
