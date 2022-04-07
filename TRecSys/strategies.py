@@ -59,7 +59,11 @@ class BaseStrategy:
             self.partitions[partition_num].add_items(items, num_ids)
         return errors, affected_partitions
 
-    def index_dataframe(self, df):
+    def partition_index_(self, data, partition_num, from_, to_):
+        ids = list(range(from_, to_))
+        self.partitions[partition_num].add_items(data, ids)
+
+    def index_dataframe(self, df, parallel=True):
         partitioned = df.groupby(self.schema.filters).apply(lambda ds: ds.to_dict(orient='records'))
         encoded = dict()
         num_ids = dict()
@@ -73,13 +77,16 @@ class BaseStrategy:
             num_ids[partition] =(num_id_start, num_id_start+len(data))
             self.index_labels.extend([datum[self.schema.id_col] for datum in data])
             num_id_start+=len(data)
-        # Can be parallelized
-        for partition, data in encoded.items():
-            partition_num = partition_nums[partition]
-            from_, to_ = num_ids[partition]
-            ids = list(range(from_, to_))
-            self.partitions[partition_num].add_items(data, ids)
+
         affected_partitions = len(encoded)
+        if parallel:
+            Parallel(n_jobs=-1)([delayed(self.partition_index_)(data, partition_nums[partition], num_ids[partition][0], num_ids[partition][1]) for partition, data in encoded.items()])
+        else:
+            for partition, data in encoded.items():
+                partition_num = partition_nums[partition]
+                from_, to_ = num_ids[partition]
+                ids = list(range(from_, to_))
+                self.partitions[partition_num].add_items(data, ids)
         return affected_partitions
 
 
