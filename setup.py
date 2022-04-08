@@ -1,9 +1,11 @@
 from distutils.core import setup
 
-__version__="0.2.61"
+__package__= "TRecSys"
+__version__=""
+exec(__package__+"/version")
 setup(
-    name="TRecSys",
-    packages=["TRecSys"],
+    name=__package__,
+    packages=[__package__],
     install_requires=[
         "faiss-cpu>=1.7.1.post3",
         "hnswlib>=0.5.1",
