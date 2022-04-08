@@ -2,7 +2,8 @@ from distutils.core import setup
 
 __package__= "TRecSys"
 __version__=""
-exec(__package__+"/version.py")
+with open(__package__+"/version.py", 'r') as f:
+    exec(f.read())
 setup(
     name=__package__,
     packages=[__package__],
