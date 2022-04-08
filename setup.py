@@ -2,7 +2,7 @@ from distutils.core import setup
 
 __package__= "TRecSys"
 __version__=""
-exec(__package__+"/version")
+exec(__package__+"/version.py")
 setup(
     name=__package__,
     packages=[__package__],
