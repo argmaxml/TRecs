@@ -135,7 +135,7 @@ class BaseEncoder:
         raise NotImplementedError("len is not implemented")
 
     def __call__(self, value):
-        return self.column_weight * float(self.encode(value)) * np.ones(len(self)) * (1/np.sqrt(self.nonzero_elements))
+        return self.column_weight * self.encode(value) * np.ones(len(self)) * (1/np.sqrt(self.nonzero_elements))
 
     def encode(self, value):
         raise NotImplementedError("encode is not implemented")
@@ -316,14 +316,18 @@ class HierarchyEncoder(CachingEncoder):
         return {"similarity_by_depth": self.similarity_by_depth}
 
 class NumpyEncoder(BaseEncoder):
-    def __init__(self, column, column_weight, values, url):
-        super().__init__(column = column, column_weight=column_weight, values=values, url=url)
+    def __init__(self, column, column_weight, values, url, **kwargs):
+        super().__init__(column = column, column_weight=column_weight, values=values, url=url, **kwargs)
         with open(url, 'rb') as f:
-            data = np.load(f)
-            self.ids = list(data["ids"])
-            self.embedding = data["embedding"]
+            self.embedding = np.load(f)
+
+        if type(values)==list:
+            self.ids = values
+        else:
+            with open(values, 'r') as f:
+                self.ids = [l.strip() for l in f.readlines() if l.strip()!=""]
         assert self.embedding.shape[0]==len(self.ids), "Dimension mismatch between ids and embedding"
-        self.nonzero_elements=self.embedding.shape[1]
+        self.nonzero_elements=1
 
     def __len__(self):
         return self.embedding.shape[1]
@@ -332,7 +336,7 @@ class NumpyEncoder(BaseEncoder):
         try:
             idx = self.ids.index(value)
         except ValueError:
-            return np.zeros(self.embedding.shape[1])
+            return np.zeros(len(self.ids))
         return self.embedding[idx,:]
 
 class JSONEncoder(CachingEncoder):
