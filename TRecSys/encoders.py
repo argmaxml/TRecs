@@ -46,7 +46,7 @@ class PartitionSchema:
                                                         similarity_by_depth=enc["similarity_by_depth"])
             elif enc["type"] in ["numpy", "np", "embedding"]:
                 encoder_dict[enc["field"]] = NumpyEncoder(column=enc["field"], column_weight=enc["weight"],
-                                                            values=enc["values"], default=enc.get("default"), url=enc["url"])
+                                                            values=enc["values"], default=enc.get("default"), npy=npy["url"])
             elif enc["type"] in ["JSON", "json", "js"]:
                 encoder_dict[enc["field"]] = JSONEncoder(column=enc["field"], column_weight=enc["weight"],
                                                             values=enc["values"], default=enc.get("default"), length=enc["length"])
@@ -316,9 +316,9 @@ class HierarchyEncoder(CachingEncoder):
         return {"similarity_by_depth": self.similarity_by_depth}
 
 class NumpyEncoder(BaseEncoder):
-    def __init__(self, column, column_weight, values, url, **kwargs):
-        super().__init__(column = column, column_weight=column_weight, values=values, url=url, **kwargs)
-        with open(url, 'rb') as f:
+    def __init__(self, column, column_weight, values, npy, **kwargs):
+        super().__init__(column = column, column_weight=column_weight, values=values, npy=npy, **kwargs)
+        with open(npy, 'rb') as f:
             self.embedding = np.load(f)
 
         if type(values)==list:
