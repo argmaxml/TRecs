@@ -45,7 +45,6 @@ class IndexParallel(unittest.TestCase):
             "country":"EU"
         }
         ])
-        self.strategy.save_model("t1")
 
     def test_pandas(self):
         df = pd.DataFrame([
@@ -57,10 +56,14 @@ class IndexParallel(unittest.TestCase):
             ['id6', "mid", "meat", "EU"],
             
         ], columns=["id", "price", "category", "country"])
+        element_count = self.strategy.get_partition_stats()["element_count"]
+        self.assertEqual({'US': 3, 'EU': 1}, element_count)
         self.strategy.index_dataframe(df)
         actual = self.strategy.index_labels
         expected = ['1', '2', '3', '4', 'id2', 'id4', 'id6', 'id1', 'id3', 'id5']
         self.assertEqual(expected, actual)
+        element_count = self.strategy.get_partition_stats()["element_count"]
+        self.assertEqual({'US': 6, 'EU': 4}, element_count)
 
 
 

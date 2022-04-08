@@ -3,7 +3,6 @@ from operator import itemgetter as at
 import numpy as np
 from pathlib import Path
 
-from torchaudio import list_audio_backends
 src = Path(__file__).absolute().parent
 sys.path.append(str(src))
 from encoders import PartitionSchema
@@ -59,9 +58,6 @@ class BaseStrategy:
             self.partitions[partition_num].add_items(items, num_ids)
         return errors, affected_partitions
 
-    def partition_index_(self, data, partition_num, from_, to_):
-        ids = list(range(from_, to_))
-        self.partitions[partition_num].add_items(data, ids)
 
     def index_dataframe(self, df, parallel=True):
         partitioned = df.groupby(self.schema.filters).apply(lambda ds: ds.to_dict(orient='records'))
@@ -69,18 +65,28 @@ class BaseStrategy:
         num_ids = dict()
         partition_nums = dict()
         num_id_start = len(self.index_labels)
-        self.index_labels
+        affected_partitions = len(partitioned)
         # Cannot be parallelized because index_labels should be consequently updated
         for partition, data in partitioned.items():
             partition_nums[partition] = self.schema.partition_num(data[0])
-            encoded[partition] = self.encode(data)
+            if not parallel:
+                encoded[partition] = self.encode(data)
             num_ids[partition] =(num_id_start, num_id_start+len(data))
             self.index_labels.extend([datum[self.schema.id_col] for datum in data])
             num_id_start+=len(data)
 
-        affected_partitions = len(encoded)
         if parallel:
-            Parallel(n_jobs=-1)([delayed(self.partition_index_)(data, partition_nums[partition], num_ids[partition][0], num_ids[partition][1]) for partition, data in encoded.items()])
+            @delayed
+            def tup_encode(partition, data):
+                return partition, self.encode(data)
+            encoded = dict(Parallel(n_jobs=-1)(tup_encode(partition, data) for partition, data in partitioned.items()))
+
+            @delayed
+            def add_items_to_partition(data, partition_num, from_, to_):
+                ids = np.arange(from_, to_)
+                self.partitions[partition_num].add_items(data, ids)
+            
+            Parallel(n_jobs=-1, require='sharedmem')([add_items_to_partition(data, partition_nums[partition], num_ids[partition][0], num_ids[partition][1]) for partition, data in encoded.items()])
         else:
             for partition, data in encoded.items():
                 partition_num = partition_nums[partition]
