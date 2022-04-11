@@ -178,9 +178,13 @@ class BaseStrategy:
                 continue
         return {"status": "OK", "saved_indices": saved, "path": str(self.model_dir/model_name)}
 
-    def load_model(self, model_name):
-        with (self.model_dir/model_name/"schema.json").open('r') as f:
-            schema_dict=json.load(f)
+    def load_model(self, model_name, from_model_dir=True):
+        if from_model_dir:
+            with (self.model_dir/model_name/"schema.json").open('r') as f:
+                schema_dict=json.load(f)
+        else:
+            with (model_name/"schema.json").open('r') as f:
+                schema_dict=json.load(f)
         self.schema = PartitionSchema(**schema_dict)
         self.partitions = [self.IndexEngine(self.schema.metric, self.schema.dim, **self.engine_params) for _ in self.schema.partitions]
         (self.model_dir/model_name).mkdir(parents=True, exist_ok=True)
@@ -248,6 +252,7 @@ class AvgUserStrategy(BaseStrategy):
         return self.schema.partition_num(user_data)
 
     def user_query(self, user_data, item_history, k, user_coldstart_item=None):
+        #TODO: add explainability to user_query
         if user_coldstart_item is None:
             n = 0
             vec = np.zeros(self.schema.dim)

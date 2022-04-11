@@ -7,6 +7,28 @@ import requests
 from smart_open import open
 
 class PartitionSchema:
+    """
+    Class responsible to partition the data according to a schema
+
+    Attributes
+    __________
+            encoders : list
+                The encoder(s) responsible to vectorize the feature.
+            filters : list
+                The field(s) on which the similarity server will be repartitioned.
+            metric : str, default 'ip'
+                The distance metric used to measure vector similarity.
+
+    Methods
+    ________
+    encode(x)
+        Returns the combined encoders vector with non-zero weights.
+    partition_num(x)
+
+    to_dict()
+        Returns a the information in the schema as a dictionary.
+
+    """
     __slots__=["encoders", "filters", "partitions", "dim", "metric", "defaults", "id_col", "user_encoders"]
     def __init__(self, encoders, filters=[], metric='ip', id_col="id", user_encoders=[]):
         self.metric = metric
@@ -274,7 +296,7 @@ class BinOrdinalEncoder(BinEncoder):
             if ind + offset < len(self.values):
                 vec[ind + offset] = self.window[len(self.window) // 2 + offset]
         return vec
-    
+
     def special_properties(self):
         return {"window": self.window}
 
